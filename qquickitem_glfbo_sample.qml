@@ -1,5 +1,5 @@
 import QtQuick 2.3
-import HelloGLWorld 1.0
+import GlFboViewport 1.0
 
 Item {
     width:  400
@@ -7,16 +7,17 @@ Item {
 
     Timer {
         interval: 1; running: true; repeat: true
-        onTriggered: { helloGlWorld.update(); }
+        onTriggered: { helloOurViewportAdapter.update(); }
     }
 
-    HelloGLWorldItem{
-        id: helloGlWorld
+    GlFboViewportAdapter{
+        id: helloOurViewportAdapter
+        objectName: "helloOurViewportAdapter"
         anchors.fill: parent
     }
 
     Text {
-        anchors.bottom: helloGlWorld.bottom
+        anchors.bottom: helloOurViewportAdapter.bottom
         x: 20
         wrapMode: Text.WordWrap
 

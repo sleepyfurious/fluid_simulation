@@ -1,64 +1,86 @@
-from    PyQt5.QtQuick import QQuickFramebufferObject
+# An Interface class for making a OpenGL Viewport with QquickItemAdapter
+#
+# dev prerequisite in Qt 5.5.1 Reference Documentation:
+# - Qt Quick > Scene Graph - OpenGL Under QML
+# - Qt Quick > Scene Graph - Rendering FBOs
+
+from    PyQt5.QtQml     import qmlRegisterType
+from    PyQt5.QtQuick   import QQuickFramebufferObject
 import  glm
 
-class QquickGlFboItem( QQuickFramebufferObject ):
-    """here is an Interface class for making a OpenGL Viewport. Client implements this Interface to use with
-       QQuickGLFBOItem which is an adapter for this object for QtQuickItem """
-    class ViewportI:
+"""Here is an Interface class for making a OpenGL Viewport"""
+class GlFboViewportI:
+    def __init__( self ):
+        raise NotImplementedError
 
-        def Cleanup( self ): pass
+    def Cleanup( self ):
+        raise NotImplementedError
 
-        """ client must draw into QtQuick's fbo using provided fboName. it's prebinded and glViewported """
-        def Draw( self, fboName: int, fboSize: glm.ivec2 ): pass
+    """ Implementation class draw into specified fbo using provided fboName. To let client consume the result fbo (e.g.
+        show up on screen). Don't expect a clean OpenGL state. """
+    def Draw( self, fboName: int, fboSize: glm.ivec2 ):
+        raise NotImplementedError
 
-    """ qmlRegisterType don't allow CTor assignment client must override this method to assign
-       the implemented viewport """
-    def AssignViewport( self ) -> ViewportI:
-        return None
+class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
 
     def __init__( self, parent=None ):
-        super( QquickGlFboItem, self ).__init__( parent )
-        self.viewport = self.AssignViewport()
+        super( QquickItemFromGlFboViewportAdapter, self ).__init__( parent )
+        self.viewport = None #type: GlFboViewportI
 
-    class ViewportStub( QQuickFramebufferObject.Renderer ):
+    def SetViewport( self, viewport: GlFboViewportI ):
+        self.viewport = viewport
+
+    class _ViewportStub( QQuickFramebufferObject.Renderer ):
         def __init__( self, owner ):
-            super( QquickGlFboItem.ViewportStub, self ).__init__( )
+            super( QquickItemFromGlFboViewportAdapter._ViewportStub, self ).__init__()
             self.owner = owner
 
         def synchronize( self, item ): pass
 
         def render( self ):
+            if self.owner.viewport is None: return
+
             size = self.framebufferObject().size()
             self.owner.viewport.Draw( self.framebufferObject().handle(), glm.ivec2( size.width(), size.height() ) )
             self.owner.window().resetOpenGLState()
 
+    #- below is to compile with QQuickFramebufferObject ----------------------------------------------------------------
     def createRenderer( self ) -> QQuickFramebufferObject.Renderer:
-        return self.ViewportStub( self )
+        return self._ViewportStub( self )
 
     def releaseResources( self ):
-        self.viewport.Cleanup()
-        super( QquickGlFboItem, self ).releaseResources( )
+        if not self.viewport is None: self.viewport.Cleanup()
+        super( QquickItemFromGlFboViewportAdapter, self ).releaseResources()
 
+qmlRegisterType( QquickItemFromGlFboViewportAdapter, "GlFboViewport", 1, 0, "GlFboViewportAdapter" )
 
 ## USAGE EXAMPLE #######################################################################################################
 if __name__ == "__main__":
     import  sys
     from    PyQt5.QtCore    import QUrl
     from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat
-    from    PyQt5.QtQml     import qmlRegisterType
     from    PyQt5.QtQuick   import QQuickView
     from    OpenGL.GL       import *
 
-    class HelloGLWorld( QquickGlFboItem.ViewportI ):
+    # create an app, create a window with sample qml
+    app = QGuiApplication( sys.argv )
+    view = QQuickView( QUrl.fromLocalFile("qquickitem_glfbo_sample.qml") )
+
+    # specify OpenGL context version
+    oglFormat = view.format()
+    oglFormat.setProfile(QSurfaceFormat.CoreProfile)
+    oglFormat.setVersion(3,3)
+    view.setFormat(oglFormat)
+
+    # define our viewport
+    class HelloGLWorld( GlFboViewportI ):
 
         def __init__(self):
             self.frameCount = 0
-            self._qQuickGLFBOItem = QquickGlFboItem()
 
         def Cleanup ( self ): pass
 
         def Draw ( self, fboName: int, fboSize: glm.ivec2 ):
-
             if self.frameCount %100 > 50:
                 glClearBufferfv( GL_COLOR, 0, ( 1, .5, .5, 1 ) )
             else:
@@ -66,25 +88,15 @@ if __name__ == "__main__":
 
             self.frameCount = self.frameCount +1
 
-        def GetQQuickItem( self ):
-            return self._qQuickGLFBOItem
+    ourGlViewport = HelloGLWorld()
 
-    app = QGuiApplication( sys.argv )
+    # set our viewport into the loaded qml,
+    # see: Qt 5.5.1 Reference Documentation > Qt QML > Interacting with QML Objects from C++
+    theAdapterInstance = view.rootObject().findChild(
+                            QquickItemFromGlFboViewportAdapter,
+                            "helloOurViewportAdapter") #type: QquickItemFromGlFboViewportAdapter
+    theAdapterInstance.SetViewport( ourGlViewport )
 
-    class HelloGLWorldAdapter( QquickGlFboItem ):
-        def AssignViewport ( self ):
-            return HelloGLWorld()
-
-    qmlRegisterType( HelloGLWorldAdapter, "HelloGLWorld", 1, 0, "HelloGLWorldItem" )
-
-    view = QQuickView( QUrl.fromLocalFile("qquickitem_glfbo_sample.qml") )
-
-    # edit opengl context version format
-    oglFormat = view.format()
-    oglFormat.setProfile(QSurfaceFormat.CoreProfile)
-    oglFormat.setVersion(3,3)
-    view.setFormat(oglFormat)
-
+    # let the result shown
     view.show()
-
     sys.exit( app.exec() )

@@ -1,4 +1,5 @@
 import  sys
+from    math            import sqrt
 from    PyQt5.QtCore    import QUrl
 from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat
 from    PyQt5.QtQuick   import QQuickView
@@ -36,15 +37,16 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
 
 
     def Draw ( self, fboName: int, fboSize: glm.ivec2 ):
-        self.cam.azimuth  += radians( 2 )
-        self.cam.altitude += radians( 0.5 )
+        self.cam.azimuth  += radians( 0.4 )
+        self.cam.altitude += radians( 0.1 )
 
         if not self.frameRenderer:
             self.frameRenderer = framerenderer.FrameRenderer()
 
-        sceneBoxHeight = 1.0
-        vpMat =  self.cam.GetProjectionMatrixOfTurntable( 0.5, sceneBoxHeight ) \
-                *self.cam.GetViewMatrixOfTurntable( glm.vec3( 0 ), sceneBoxHeight )
+        sceneBoxSize = glm.vec3( 1.0, 1.0, 1.0 )
+        sceneBoxTurntableRadius = sqrt( 0.25* sceneBoxSize.x *sceneBoxSize.x + 0.25 *sceneBoxSize.z *sceneBoxSize.z )
+        vpMat =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize.y ) \
+                *self.cam.GetViewMatrixOfTurntable( glm.vec3( 0 ), sceneBoxSize.y )
 
         self.frameRenderer.RenderToDrawBuffer_VelocityLine( fboSize, vpMat )
 

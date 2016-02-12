@@ -6,6 +6,7 @@ import  glm
 
 import  qquickitem_glfbo
 import  framerenderer
+from    turntable_ortho_cam import *
 
 class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
     def __init__(self):
@@ -27,16 +28,25 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.appView    = appView
         self.frameRenderer = None
 
+        self.cam        = TurntableOrthographicCamera()
+
     def Exec ( self ):
         self.appView.show()
         self.app.exec()
 
 
     def Draw ( self, fboName: int, fboSize: glm.ivec2 ):
+        self.cam.azimuth  += radians( 2 )
+        self.cam.altitude += radians( 0.5 )
+
         if not self.frameRenderer:
             self.frameRenderer = framerenderer.FrameRenderer()
 
-        self.frameRenderer.RenderToDrawBuffer_VelocityLine( fboSize, glm.mat4() )
+        sceneBoxHeight = 1.0
+        vpMat =  self.cam.GetProjectionMatrixOfTurntable( 0.5, sceneBoxHeight ) \
+                *self.cam.GetViewMatrixOfTurntable( glm.vec3( 0 ), sceneBoxHeight )
+
+        self.frameRenderer.RenderToDrawBuffer_VelocityLine( fboSize, vpMat )
 
     def Cleanup ( self ):
         if self.frameRenderer:

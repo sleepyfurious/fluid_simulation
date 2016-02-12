@@ -40,21 +40,25 @@ class FrameRenderer:
     def __del__(self):
         pass # will do
 
-    def RenderToDrawBuffer_VelocityLine ( self, drawBufferSize: glm.ivec2, camMat: glm.mat4 ):
+    def RenderToDrawBuffer_VelocityLine ( self, drawBufferSize: glm.ivec2, vpMat: glm.mat4 ):
+        # this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
+        vpMatQtWordaround = glm.mat4().scale( glm.vec3( 1, -1 , 1 ) ) *vpMat
 
         glClearBufferfv( GL_COLOR, 0, ( 1,.5,.5,1 ) )
 
         glPointSize( 2.0 )
 
         glUseProgram( self.program )
+        glUniformMatrix4fv( glGetUniformLocation( self.program, 'vpMat' ),
+                            1, GL_FALSE, list(glm.MatrixIterator( vpMatQtWordaround )) )
 
         glBindVertexArray( self.blankVao )
-        glDrawArrays( GL_LINES, 0, 100*2 )
+        glDrawArrays( GL_LINES, 0, 1000*2 )
         glBindVertexArray( 0 )
 
 _velocityLineVertShader = """
 #version 330 core
-#line 58
+#line 62
 
 /* confuse how, but taken from here:
  * http://stackoverflow.com/questions/14845084/how-do-i-convert-a-1d-index-into-a-3d-index
@@ -73,20 +77,25 @@ ivec3 GetIndex3Dfrom1D( int i, ivec2 wh ) {
 uniform float gridSpacing = 0.1;
 uniform ivec3 gridN = ivec3( 10 );
 
+// camera
+uniform mat4 vpMat = mat4( 1 );
+
 void main ( void ) {
     int     cellID = int( gl_VertexID *0.5 );
     bool    isTail  = mod( gl_VertexID, 2 ) == 0.0; // isOdd 0---->1
 
-    vec3    gridSize    = gridSpacing *gridN;
-    ivec3   gridCoord   = GetIndex3Dfrom1D( cellID, gridN.xy );
-    vec3    gridPos     = ( gridSize *gridCoord ) / gridN;
-    vec3    centeredGridPos = gridPos -( 0.5 *gridSpacing *( gridN -1 ) );
+    vec3    gridSize            = gridSpacing *gridN;
+    vec3    gridCenterPos       = 0.5 *gridSpacing *( gridN -1 );
+
+    ivec3   cellCoord           = GetIndex3Dfrom1D( cellID, gridN.xy );
+    vec3    gridScaledCellPos   = ( gridSize *cellCoord ) / gridN;
+    vec3    gridGroundCenteredCellPos = gridScaledCellPos -gridCenterPos;
 
     if ( isTail ) {
-        centeredGridPos += 0.05;
+        gridGroundCenteredCellPos += 0.01;
     }
 
-    gl_Position = vec4( centeredGridPos, 1 );
+    gl_Position = vpMat *vec4( gridGroundCenteredCellPos, 1 );
 }
 """
 

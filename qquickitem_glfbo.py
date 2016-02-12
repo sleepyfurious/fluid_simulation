@@ -1,4 +1,4 @@
-# An Interface class for making a OpenGL Viewport with QquickItemAdapter
+# An Interface class for making a OpenGL Viewport with QquickItemFromGlFboViewportAdapter
 #
 # dev prerequisite in Qt 5.5.1 Reference Documentation:
 # - Qt Quick > Scene Graph - OpenGL Under QML
@@ -8,17 +8,19 @@ from    PyQt5.QtQml     import qmlRegisterType
 from    PyQt5.QtQuick   import QQuickFramebufferObject
 import  glm
 
-"""Here is an Interface class for making a OpenGL Viewport"""
+# an Interface class for making a OpenGL Viewport
 class GlFboViewportI:
     def __init__( self ):
         raise NotImplementedError
 
-    def Cleanup( self ):
+    # To let client consume the result fbo (e.g. show up on screen). Implementation class draw into specified fbo using
+    # provided fboName. GLContext will pre-makeCurrented, don’t expect a clean OpenGL state, also check/create GLContext
+    # dependent here.
+    def Draw( self, fboName: int, fboSize: glm.ivec2 ):
         raise NotImplementedError
 
-    """ Implementation class draw into specified fbo using provided fboName. To let client consume the result fbo (e.g.
-        show up on screen). Don't expect a clean OpenGL state. """
-    def Draw( self, fboName: int, fboSize: glm.ivec2 ):
+    # Cleanup everything GLContext dependent here.
+    def Cleanup( self ):
         raise NotImplementedError
 
 class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):

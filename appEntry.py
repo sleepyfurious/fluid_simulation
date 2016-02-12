@@ -27,10 +27,9 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.appView    = appView
         self.frameRenderer = None
 
-    def Cleanup ( self ):
-        if self.frameRenderer:
-            del self.framerenderer
-            self.frameRenderer = None
+    def Exec ( self ):
+        self.appView.show()
+        self.app.exec()
 
 
     def Draw ( self, fboName: int, fboSize: glm.ivec2 ):
@@ -39,9 +38,10 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
 
         self.frameRenderer.RenderToDrawBuffer_VelocityLine( fboSize, glm.mat4() )
 
-    def Exec ( self ):
-        self.appView.show()
-        self.app.exec()
+    def Cleanup ( self ):
+        if self.frameRenderer:
+            del self.framerenderer
+            self.frameRenderer = None
 
 fluidSimulationApp = FluidSimulationApp()
 fluidSimulationApp.Exec()

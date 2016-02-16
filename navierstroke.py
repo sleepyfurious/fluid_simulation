@@ -5,7 +5,7 @@ class Eq12CommonInfo:
     def __init__ ( self, gridspacing: float, velocity2Dfield2D: Vec2DField2D ):
         self._gridspacing  = gridspacing
         self._lVelocity2DField2D = velocity2Dfield2D
-        self.lQuantity4Dfield2D = None #type: Vec4DField2D
+        self.lQuantity4DField2D = None #type: Vec4DField2D
         self.deltaT = float()
 
     @property
@@ -18,7 +18,7 @@ class Eq12CommonInfo:
     def halfRGridspacing(self): return 0.5 /self._gridspacing
 
     @property
-    def lVelocity2DField2D(self)-> Vec2DField2D: return self.lVelocity2DField2D
+    def lVelocity2DField2D(self)-> Vec2DField2D: return self._lVelocity2DField2D
 
 class Eq12Operator:
     def __init__(self, lEq12CommonInfo: Eq12CommonInfo ): self._lEq12CommonInfo = lEq12CommonInfo
@@ -30,8 +30,8 @@ class Advection ( Eq12Operator ):
     def Execute( self, gridCoord: ivec2 )-> vec4:
         u = self._lEq12CommonInfo # uniform variable
 
-        pos = gridCoord -u.deltaT *u.rGridspacing *u.lVelocity2DField2D.GetData( gridCoord )
-        return u.lQuantity4Dfield2D.GetBiLerp( pos )
+        pos = gridCoord -u.deltaT *u.rGridspacing *u.lVelocity2DField2D.GetData( gridCoord ).xy
+        return u.lQuantity4DField2D.GetBiLerp( pos )
 
 class Jacobi ( Eq12Operator ):
     def __init__ ( self, lEq12CommonInfo: Eq12CommonInfo ):
@@ -66,13 +66,15 @@ class GradientSubtraction ( Eq12Operator ):
     def Execute ( self, gridCoord: ivec2 ) -> vec4:
         u = self._lEq12CommonInfo # uniform variable
 
-        pL = u.lQuantity4DField2D.GetData( gridCoord -ivec2( 1, 0 ) )
-        pR = u.lQuantity4DField2D.GetData( gridCoord +ivec2( 1, 0 ) )
-        pB = u.lQuantity4DField2D.GetData( gridCoord -ivec2( 0, 1 ) )
-        pT = u.lQuantity4DField2D.GetData( gridCoord +ivec2( 0, 1 ) )
+        pL = u.lQuantity4DField2D.GetData( gridCoord -ivec2( 1, 0 ) ).x
+        pR = u.lQuantity4DField2D.GetData( gridCoord +ivec2( 1, 0 ) ).x
+        pB = u.lQuantity4DField2D.GetData( gridCoord -ivec2( 0, 1 ) ).x
+        pT = u.lQuantity4DField2D.GetData( gridCoord +ivec2( 0, 1 ) ).x
 
         ret = u.lVelocity2DField2D.GetData( gridCoord ) #type vec4
         ret.xy -= u.halfRGridspacing *vec2( pR -pL, pT -pB )
+
+        return ret
 
 class Harris2004NavierStrokeSimulation:
 
@@ -90,31 +92,44 @@ class Harris2004NavierStrokeSimulation:
         self._shader_gradientSubtraction    = GradientSubtraction( self._eq12CommonInfo )
 
     def Step( self, deltaT: float ):
+        import looptimer
+        profiler = looptimer.LoopTimer()
+
         dX2         = self._eq12CommonInfo.gridspacing *self._eq12CommonInfo.gridspacing
         dX2_rVdT    = dX2 /( self.viscosity *deltaT )
 
+        print( "frameConst", profiler.GetElapsedInSecond() )
+
         # advection
         self._eq12CommonInfo.deltaT = deltaT
-        self._eq12CommonInfo.lQuantity4Dfield2D = self._pressure1dye1notin2_field2D
+        self._eq12CommonInfo.lQuantity4DField2D = self._pressure1dye1notin2_field2D
         self.ExecuteShader( self._shader_advection, self._gridSize, self._velocity2D_field2D )
 
-        # viscous diffusion
-        self._eq12CommonInfo.lQuantity4Dfield2D = self._velocity2D_field2D
-        self._shader_jacobi.alphaRbeta = vec2( dX2_rVdT, 1 /( 4 +dX2_rVdT ) )
-        for i in range( 20 ):
-            self.ExecuteShader( self._shader_jacobi, self._gridSize, self._velocity2D_field2D )
+        print( "advection", profiler.GetElapsedInSecond() )
+
+        # # viscous diffusion
+        # self._eq12CommonInfo.lQuantity4DField2D = self._velocity2D_field2D
+        # self._shader_jacobi.alphaRbeta = vec2( dX2_rVdT, 1 /( 4 +dX2_rVdT ) )
+        # for i in range( 20 ):
+        #     self.ExecuteShader( self._shader_jacobi, self._gridSize, self._velocity2D_field2D )
+        #
+        # print( "viscous", profiler.GetElapsedInSecond() )
 
         # add force here
 
         # compute pressure
         self.ExecuteShader( self._shader_divergence, self._gridSize, self._velocity2D_field2D )
-        self._eq12CommonInfo.lQuantity4Dfield2D = self._pressure1dye1notin2_field2D
+        print( "pressure divergence", profiler.GetElapsedInSecond() )
+
+        self._eq12CommonInfo.lQuantity4DField2D = self._pressure1dye1notin2_field2D
         self._shader_jacobi.alphaRbeta = vec2( -dX2, 1 /4 )
         for i in range( 40 ):
             self.ExecuteShader( self._shader_jacobi, self._gridSize, self._pressure1dye1notin2_field2D )
+        print( "pressure jacobi", profiler.GetElapsedInSecond() )
 
         # subtract pressure gradient
         self.ExecuteShader( self._shader_gradientSubtraction, self._gridSize, self._velocity2D_field2D )
+        print( "subtractPressureGradient", profiler.GetElapsedInSecond() )
 
     @staticmethod
     def ExecuteShader( shader: Eq12Operator, gridSize: ivec2, targetField: VectorField2D ):

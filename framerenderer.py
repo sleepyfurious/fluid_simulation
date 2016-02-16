@@ -3,6 +3,8 @@
 from OpenGL.GL import *
 import glm
 
+from sleepy_mockup_glslsampler import *
+
 
 def CompileShaderProgram( vertShaderSrc: str, fragShaderSrc: str )-> GLhandle:
     # analogue to OGLSuperBible Listing 2.5
@@ -47,7 +49,9 @@ class FrameRenderer:
     def __del__(self):
         pass # will do
 
-    def RenderToDrawBuffer_VelocityLine ( self, drawBufferSize: glm.ivec2, vpMat: glm.mat4 ):
+    def RenderToDrawBuffer_VelocityLine (
+        self, drawBufferSize: glm.ivec2, vpMat: glm.mat4, velocity2DField2D: Vec2DField2D
+    ):
         # this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
         vpMatQtWordaround = glm.mat4().scale( glm.vec3( 1, -1 , 1 ) ) *vpMat
 

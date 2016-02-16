@@ -92,44 +92,32 @@ class Harris2004NavierStrokeSimulation:
         self._shader_gradientSubtraction    = GradientSubtraction( self._eq12CommonInfo )
 
     def Step( self, deltaT: float ):
-        import looptimer
-        profiler = looptimer.LoopTimer()
-
         dX2         = self._eq12CommonInfo.gridspacing *self._eq12CommonInfo.gridspacing
         dX2_rVdT    = dX2 /( self.viscosity *deltaT )
-
-        print( "frameConst", profiler.GetElapsedInSecond() )
 
         # advection
         self._eq12CommonInfo.deltaT = deltaT
         self._eq12CommonInfo.lQuantity4DField2D = self._pressure1dye1notin2_field2D
         self.ExecuteShader( self._shader_advection, self._gridSize, self._velocity2D_field2D )
 
-        print( "advection", profiler.GetElapsedInSecond() )
-
-        # # viscous diffusion
-        # self._eq12CommonInfo.lQuantity4DField2D = self._velocity2D_field2D
-        # self._shader_jacobi.alphaRbeta = vec2( dX2_rVdT, 1 /( 4 +dX2_rVdT ) )
-        # for i in range( 20 ):
-        #     self.ExecuteShader( self._shader_jacobi, self._gridSize, self._velocity2D_field2D )
-        #
-        # print( "viscous", profiler.GetElapsedInSecond() )
+        # viscous diffusion
+        self._eq12CommonInfo.lQuantity4DField2D = self._velocity2D_field2D
+        self._shader_jacobi.alphaRbeta = vec2( dX2_rVdT, 1 /( 4 +dX2_rVdT ) )
+        for i in range( 20 ):
+            self.ExecuteShader( self._shader_jacobi, self._gridSize, self._velocity2D_field2D )
 
         # add force here
 
         # compute pressure
         self.ExecuteShader( self._shader_divergence, self._gridSize, self._velocity2D_field2D )
-        print( "pressure divergence", profiler.GetElapsedInSecond() )
 
         self._eq12CommonInfo.lQuantity4DField2D = self._pressure1dye1notin2_field2D
         self._shader_jacobi.alphaRbeta = vec2( -dX2, 1 /4 )
         for i in range( 40 ):
             self.ExecuteShader( self._shader_jacobi, self._gridSize, self._pressure1dye1notin2_field2D )
-        print( "pressure jacobi", profiler.GetElapsedInSecond() )
 
         # subtract pressure gradient
         self.ExecuteShader( self._shader_gradientSubtraction, self._gridSize, self._velocity2D_field2D )
-        print( "subtractPressureGradient", profiler.GetElapsedInSecond() )
 
     @staticmethod
     def ExecuteShader( shader: Eq12Operator, gridSize: ivec2, targetField: VectorField2D ):

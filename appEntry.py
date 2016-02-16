@@ -31,7 +31,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.appView            = appView
         self.frameRenderer      = None
         self.cam                = TurntableOrthographicCamera()
-        self.navierstrokeSim    = Harris2004NavierStrokeSimulation( ivec2(100), 0.2 )
+        self.navierstrokeSim    = Harris2004NavierStrokeSimulation( ivec2(10), 0.2 )
         self.loopTimer          = None
         self.frameCounter       = 0
 

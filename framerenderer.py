@@ -39,38 +39,62 @@ def CompileShaderProgram( vertShaderSrc: str, fragShaderSrc: str )-> GLhandle:
 
 """All method must be invoked in the same living OpenGL 3.3 context"""
 class FrameRenderer:
-    def __init__( self ):
-        blankVao = glGenVertexArrays( 1 )
+    def __init__( self, fieldSize: glm.ivec3 ):
+        self._velocityLineProgram = CompileShaderProgram( _velocityLineVertShader, _opaqueShadelessFragShader )
+        self._sceneBoxWireProgram = CompileShaderProgram( _sceneBoxWireVertShader, _opaqueShadelessFragShader )
+        self._vao_blank = glGenVertexArrays( 1 )
+        self._fieldSize = fieldSize
 
-        self.velocityLineProgram = CompileShaderProgram( _velocityLineVertShader, _opaqueShadelessFragShader )
-        self.sceneBoxWireProgram = CompileShaderProgram( _sceneBoxWireVertShader, _opaqueShadelessFragShader )
-        self.blankVao = blankVao
+        glUseProgram( self._velocityLineProgram )
+        glUniform3iv( glGetUniformLocation( self._velocityLineProgram, 'gridN' ), 1, list( fieldSize ) )
+        glUseProgram( 0 )
+
+        self._tex_velocity = glGenTextures( 1 )
+        glBindTexture( GL_TEXTURE_2D, self._tex_velocity )
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RG32F, fieldSize.x, fieldSize.y, 0, GL_RG,
+            GL_FLOAT, 0 # don't care input data
+        )
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST )
+        glBindTexture( GL_TEXTURE_2D, 0 )
 
     def __del__(self):
-        pass # will do
+        glDeleteProgram( self._velocityLineProgram )
+        glDeleteProgram( self._sceneBoxWireProgram )
+        glDeleteVertexArrays( [ self._vao_blank ] )
 
-    def RenderToDrawBuffer_VelocityLine (
-        self, drawBufferSize: glm.ivec2, vpMat: glm.mat4, velocity2DField2D: Vec2DField2D
+    def RenderToDrawBuffer_VelocityLine ( self, vpMat: glm.mat4,
+        velocity2DField2D: Vec2DField2D, fieldSpacing: float
     ):
-        # this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
-        vpMatQtWordaround = glm.mat4().scale( glm.vec3( 1, -1 , 1 ) ) *vpMat
+        glBindVertexArray( self._vao_blank )
+        glBindTexture( GL_TEXTURE_2D, self._tex_velocity )
 
-        glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
+        glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, self._fieldSize.x, self._fieldSize.y, GL_RG, GL_FLOAT, velocity2DField2D.GetRawData() )
 
-        glBindVertexArray( self.blankVao )
+        glUseProgram( self._velocityLineProgram )
 
-        glUseProgram( self.velocityLineProgram )
-        glUniformMatrix4fv( glGetUniformLocation( self.velocityLineProgram, 'vpMat' ),
-                            1, GL_FALSE, list(glm.MatrixIterator( vpMatQtWordaround )) )
-        glDrawArrays( GL_LINES, 0, 1000*2 )
+        glUniform1fv( glGetUniformLocation( self._velocityLineProgram, 'gridSpacing' ), 1, fieldSpacing )
+        glUniformMatrix4fv( glGetUniformLocation( self._velocityLineProgram, 'vpMat' ), 1, GL_FALSE, list( vpMat ) )
+        cellNx2 = self._fieldSize.x *self._fieldSize.y *self._fieldSize.z *2
+        glDrawArrays( GL_LINES, 0, cellNx2 )
+        glDrawArrays( GL_POINTS, 0, cellNx2 )
 
-        glUseProgram( self.sceneBoxWireProgram )
-        glUniformMatrix4fv( glGetUniformLocation( self.sceneBoxWireProgram, 'vpMat' ),
-                            1, GL_FALSE, list(glm.MatrixIterator( vpMatQtWordaround )) )
-        glDrawArrays( GL_LINES, 0, 24 )
+        glUseProgram( 0 )
 
+        glBindTexture( GL_TEXTURE_2D, 0 )
         glBindVertexArray( 0 )
 
+    def RenderToDrawBuffer_SceneBoxWire ( self, vpMat: glm.mat4, boxSize: glm.vec3 ):
+        glBindVertexArray( self._vao_blank )
+        glUseProgram( self._sceneBoxWireProgram )
+
+        glUniform3fv( glGetUniformLocation( self._sceneBoxWireProgram, 'boxSize' ), 1, list( boxSize ) )
+        glUniformMatrix4fv( glGetUniformLocation( self._sceneBoxWireProgram, 'vpMat' ), 1, GL_FALSE, list( vpMat ) )
+        glDrawArrays( GL_LINES, 0, 24 )
+
+        glUseProgram( 0 )
+        glBindVertexArray( 0 )
 
 
 _velocityLineVertShader = """
@@ -97,6 +121,9 @@ uniform ivec3 gridN = ivec3( 10 );
 // camera
 uniform mat4 vpMat = mat4( 1 );
 
+// field
+uniform sampler2D velocityField;
+
 void main ( void ) {
     int     cellID = int( gl_VertexID *0.5 );
     bool    isTail  = mod( gl_VertexID, 2 ) == 0.0; // isOdd 0---->1
@@ -109,7 +136,7 @@ void main ( void ) {
     vec3    gridGroundCenteredCellPos = gridScaledCellPos -gridCenterPos;
 
     if ( isTail ) {
-        gridGroundCenteredCellPos += 0.01;
+        gridGroundCenteredCellPos += vec3( texelFetch( velocityField, cellCoord.xy, 0 ).xy, 0 );
     }
 
     gl_Position = vpMat *vec4( gridGroundCenteredCellPos, 1 );

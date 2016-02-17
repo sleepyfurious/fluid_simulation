@@ -131,3 +131,9 @@ class Harris2004NavierStrokeSimulation:
 
     def GetACopyOfPressure1dye1notin2Field2D(self)-> Vec4DField2D: return self._pressure1dye1notin2_field2D.GetACopy()
 
+    @property
+    def gridSize(self)-> ivec2: return ivec2( self._gridSize )
+
+    @property
+    def gridSpacing(self)-> float: return self._eq12CommonInfo._gridspacing
+

@@ -3,6 +3,7 @@ from    math            import sqrt
 from    PyQt5.QtCore    import QUrl
 from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat
 from    PyQt5.QtQuick   import QQuickView
+from    OpenGL.GL       import *
 import  glm
 
 import  qquickitem_glfbo
@@ -48,21 +49,29 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.cam.altitude += radians( 0.1 )
 
         if not self.frameRenderer:
-            self.frameRenderer = framerenderer.FrameRenderer()
+            self.frameRenderer = framerenderer.FrameRenderer( ivec3( self.navierstrokeSim.gridSize, 1 ) )
 
         if not self.loopTimer:
             self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
 
-        self.navierstrokeSim.Step( deltaT )
+        # self.navierstrokeSim.Step( deltaT )
 
-        sceneBoxSize = glm.vec3( 1.0, 1.0, 1.0 )
+        # camera matrix
+        sceneBoxSize = glm.vec3( 2.0, 2.0, 0.2 )
         sceneBoxTurntableRadius = sqrt( 0.25* sceneBoxSize.x *sceneBoxSize.x + 0.25 *sceneBoxSize.z *sceneBoxSize.z )
         vpMat =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize.y ) \
                 *self.cam.GetViewMatrixOfTurntable( glm.vec3( 0 ), sceneBoxSize.y )
+        vpMat = glm.mat4().scale( glm.vec3( 1, -1 , 1 ) ) *vpMat
+        #- ^ this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
+
+        glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
 
         self.frameRenderer.RenderToDrawBuffer_VelocityLine(
-            fboSize, vpMat, self.navierstrokeSim.GetACopyOfVelocity2DField2D() )
+            vpMat, self.navierstrokeSim.GetACopyOfVelocity2DField2D(), self.navierstrokeSim.gridSpacing
+        )
+
+        self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( vpMat, sceneBoxSize )
 
     def Cleanup ( self ):
         if self.frameRenderer:

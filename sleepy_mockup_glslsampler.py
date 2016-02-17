@@ -66,6 +66,9 @@ class Vec2DField2D ( VectorField2D ):
     def GetData ( self, gridCoord: ivec2 ) -> vec4:
         _gridCoord = self.GetWrapInCoord( gridCoord )
         return vec4( self._data[ _gridCoord.y ][ _gridCoord.x ] )
+    def GetRawData ( self )-> list: # list of concatinated float
+        return [ valueElement for rowY in self._data for itemX in rowY for valueElement in itemX ]
+
 
 class Vec4DField2D ( VectorField2D ):
     def __init__ ( self, size: ivec2 ): super( Vec4DField2D, self ).__init__( size )

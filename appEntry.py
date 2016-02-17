@@ -32,7 +32,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.appView            = appView
         self.frameRenderer      = None
         self.cam                = TurntableOrthographicCamera()
-        self.navierstrokeSim    = Harris2004NavierStrokeSimulation( ivec2(10), 0.2 )
+        self.navierstrokeSim    = Harris2004NavierStrokeSimulation( ivec2(10), 1.0 )
         self.loopTimer          = None
         self.frameCounter       = 0
 
@@ -55,10 +55,13 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
             self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
 
+        # # fixed timestep simulation
+        # self.navierstrokeSim.Step( 0.04 )
+        # # realtime timestep simulation
         self.navierstrokeSim.Step( deltaT )
 
         # camera matrix
-        sceneBoxSize = glm.vec3( 2.0, 2.0, 0.2 )
+        sceneBoxSize = glm.vec3( 10, 10, 1 )
         sceneBoxTurntableRadius = sqrt( 0.25* sceneBoxSize.x *sceneBoxSize.x + 0.25 *sceneBoxSize.z *sceneBoxSize.z )
         vpMat =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize.y ) \
                 *self.cam.GetViewMatrixOfTurntable( glm.vec3( 0 ), sceneBoxSize.y )

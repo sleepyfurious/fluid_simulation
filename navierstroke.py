@@ -51,7 +51,7 @@ class Jacobi ( Eq12Operator ):
 # this one result in scalar: vec4( scalar )
 class Divergence ( Eq12Operator ):
     def __init__ ( self, lEq12CommonInfo: Eq12CommonInfo ): super( Divergence, self ).__init__( lEq12CommonInfo )
-    def Execute ( self, gridCoord: ivec2 ) -> vec4:
+    def Execute ( self, gridCoord: ivec2 )-> vec4:
         u = self._lEq12CommonInfo # uniform variable
 
         wL = u.lVelocity2DField2D.GetData( gridCoord -ivec2( 1, 0 ) )
@@ -59,7 +59,7 @@ class Divergence ( Eq12Operator ):
         wB = u.lVelocity2DField2D.GetData( gridCoord -ivec2( 0, 1 ) )
         wT = u.lVelocity2DField2D.GetData( gridCoord +ivec2( 0, 1 ) )
 
-        return u.halfRGridspacing *( ( wR.x -wL.x ) + ( wT.y - wB.y ) )
+        return vec4( u.halfRGridspacing *( ( wR.x -wL.x ) + ( wT.y - wB.y ) ) )
 
 class GradientSubtraction ( Eq12Operator ):
     def __init__ ( self, lEq12CommonInfo: Eq12CommonInfo ): super( GradientSubtraction, self ).__init__( lEq12CommonInfo )
@@ -107,6 +107,7 @@ class Harris2004NavierStrokeSimulation:
             self.ExecuteShader( self._shader_jacobi, self._gridSize, self._velocity2D_field2D )
 
         # add force here
+        self._eq12CommonInfo.lVelocity2DField2D.SetDataVec2( ivec2(3,1), vec2(0.1) )
 
         # compute pressure
         self.ExecuteShader( self._shader_divergence, self._gridSize, self._velocity2D_field2D )
@@ -121,11 +122,9 @@ class Harris2004NavierStrokeSimulation:
 
     @staticmethod
     def ExecuteShader( shader: Eq12Operator, gridSize: ivec2, targetField: VectorField2D ):
-        retField = targetField.CreateBlankData( gridSize )
-        for y in range( gridSize.y ):
-            for x in range( gridSize.x ):
-                retField[y][x] = shader.Execute( ivec2( x, y ) )
-        targetField.SwapDataIn( retField )
+        retField = targetField.CreateNew( targetField.GetFieldSize() ) #type: VectorField2D
+        [ retField.SetDataVec4( ivec2(x,y), shader.Execute( ivec2(x,y) ) ) for y in range( gridSize.y ) for x in range( gridSize.x ) ]
+        targetField.SwapData( retField )
 
     def GetACopyOfVelocity2DField2D(self)-> Vec2DField2D: return self._velocity2D_field2D.GetACopy();
 

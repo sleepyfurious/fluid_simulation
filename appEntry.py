@@ -55,7 +55,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
             self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
 
-        # self.navierstrokeSim.Step( deltaT )
+        self.navierstrokeSim.Step( deltaT )
 
         # camera matrix
         sceneBoxSize = glm.vec3( 2.0, 2.0, 0.2 )

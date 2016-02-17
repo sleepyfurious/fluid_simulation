@@ -16,8 +16,10 @@ class VectorField2D:
                 ret._data[ y ][ x ] = self._data[ y ][ x ]
 
         return ret
-    def SwapDataIn( self, data: 'Vec2DField2D' ):
-        self._data = data
+    def SwapData( self, other: 'VectorField2D' ):
+        temp = self._data
+        self._data = other._data
+        other._data = temp
 
     def GetData( self, gridCoord: ivec2 )-> vec4: raise NotImplementedError
     def SetDataVec2( self, gridCoord: ivec2, v: vec2 ): raise NotImplementedError

@@ -1,5 +1,6 @@
 from glm import *
 from sleepy_mockup_glslsampler import *
+from looptimer import *
 
 class Eq12CommonInfo:
     def __init__ ( self, gridspacing: float ):
@@ -29,13 +30,7 @@ class Advection ( Eq12Operator ):
 
         pos = vec2( gridCoord ) -u.deltaT *u.rGridspacing *u.lQuantityField2D_1.GetData( gridCoord ).xy
 
-        # if gridCoord == ivec2( 3, 2 ):
-        #     import pdb
-        #     pdb.set_trace()
-
-        ret = u.lQuantityField2D_2.GetBiLerp( pos )
-
-        return ret
+        return u.lQuantityField2D_2.GetBiLerp( pos )
 
 # Ax = b
 class Jacobi ( Eq12Operator ):
@@ -46,10 +41,7 @@ class Jacobi ( Eq12Operator ):
     def Execute ( self, gridCoord: ivec2 )-> vec4:
         u = self._lEq12CommonInfo # uniform block variable
 
-        xL = u.lQuantityField2D_1.GetData( gridCoord -ivec2( 1, 0 ) )
-        xR = u.lQuantityField2D_1.GetData( gridCoord +ivec2( 1, 0 ) )
-        xB = u.lQuantityField2D_1.GetData( gridCoord -ivec2( 0, 1 ) )
-        xT = u.lQuantityField2D_1.GetData( gridCoord +ivec2( 0, 1 ) )
+        xL, xR, xB, xT = u.lQuantityField2D_1.GetDataLRBT( gridCoord )
 
         bC = u.lQuantityField2D_2.GetData( gridCoord )
 
@@ -61,10 +53,7 @@ class Divergence ( Eq12Operator ):
     def Execute ( self, gridCoord: ivec2 )-> vec4:
         u = self._lEq12CommonInfo # uniform block variable
 
-        wL = u.lQuantityField2D_1.GetData( gridCoord -ivec2( 1, 0 ) )
-        wR = u.lQuantityField2D_1.GetData( gridCoord +ivec2( 1, 0 ) )
-        wB = u.lQuantityField2D_1.GetData( gridCoord -ivec2( 0, 1 ) )
-        wT = u.lQuantityField2D_1.GetData( gridCoord +ivec2( 0, 1 ) )
+        wL, wR, wB, wT = u.lQuantityField2D_1.GetDataLRBT( gridCoord )
 
         return vec4( u.halfRGridspacing *( ( wR.x -wL.x ) +( wT.y -wB.y ) ) )
 
@@ -73,13 +62,10 @@ class GradientSubtraction ( Eq12Operator ):
     def Execute ( self, gridCoord: ivec2 ) -> vec4:
         u = self._lEq12CommonInfo # uniform block variable
 
-        pL = u.lQuantityField2D_1.GetData( gridCoord -ivec2( 1, 0 ) ).x
-        pR = u.lQuantityField2D_1.GetData( gridCoord +ivec2( 1, 0 ) ).x
-        pB = u.lQuantityField2D_1.GetData( gridCoord -ivec2( 0, 1 ) ).x
-        pT = u.lQuantityField2D_1.GetData( gridCoord +ivec2( 0, 1 ) ).x
+        pL, pR, pB, pT = u.lQuantityField2D_1.GetDataLRBT( gridCoord )
 
         ret = u.lQuantityField2D_2.GetData( gridCoord ) #type vec4
-        ret.xy -= u.halfRGridspacing *vec2( pR -pL, pT -pB )
+        ret.xy -= u.halfRGridspacing *vec2( pR.x -pL.x, pT.x -pB.x )
 
         return ret
 
@@ -112,10 +98,16 @@ class Harris2004NavierStrokeSimulation:
         self._shader_boundary               = Boundary( self._eq12CommonInfo )
 
         self.devTmp_stepCnt = 0
+        # self._outerLoopTimer = LoopTimer()
 
     def Step( self, deltaT: float ):
+        # print( "OUTER LOOP", self._outerLoopTimer.GetElapsedInSecond() )
+        # loopTimer = LoopTimer()
+        # operationTimer = LoopTimer()
+
         dX2         = self._eq12CommonInfo.gridspacing *self._eq12CommonInfo.gridspacing
         dX2_rVdT    = dX2 /( self.viscosity *deltaT )
+        # print( "CONSTANT:", operationTimer.GetElapsedInSecond() )
 
         # advection
         self._eq12CommonInfo.deltaT = deltaT
@@ -124,6 +116,7 @@ class Harris2004NavierStrokeSimulation:
         self.ExecuteShaderToInteriorFragments( self._shader_advection, self._gridSize, self._dye1nothin1_field2D )
         self._eq12CommonInfo.lQuantityField2D_2 = self._velocity2D_field2D
         self.ExecuteShaderToInteriorFragments( self._shader_advection, self._gridSize, self._velocity2D_field2D )
+        # print( "ADVECTION:", operationTimer.GetElapsedInSecond() )
 
         # velocity boundary condition
         self._eq12CommonInfo.lQuantityField2D_1 = self._velocity2D_field2D
@@ -136,15 +129,16 @@ class Harris2004NavierStrokeSimulation:
         self.ExecuteShaderInplaceToFragments( self._shader_boundary, ivec4( 1, 0, self.gridSize.x -2, 1 ), self._velocity2D_field2D )
         self._shader_boundary.offset = ivec2( 0, -1 )
         self.ExecuteShaderInplaceToFragments( self._shader_boundary, ivec4( 1, self.gridSize.y -1, self.gridSize.x -2, 1 ), self._velocity2D_field2D )
+        # print( "ADVECTION BOUNDARY:", operationTimer.GetElapsedInSecond() )
 
         # viscous diffusion: ok just skip it for now in this rev
 
         # add force here
-        if self.devTmp_stepCnt < 100:
-            self.devTmp_stepCnt += 1
+        if self.devTmp_stepCnt < 100 and self.devTmp_stepCnt > 1:
             vField = self._velocity2D_field2D
-            vField.SetDataVec2( ivec2(1,5), vField.GetData( ivec2(1,5) ).xy +vec2(2,0) )
-            vField.SetDataVec2( ivec2(5,1), vField.GetData( ivec2(5,1) ).xy +vec2(0,2) )
+            vField.SetDataVec2( ivec2(1,5), vField.GetData( ivec2(1,5) ).xy +vec2(20,0) *deltaT )
+            vField.SetDataVec2( ivec2(5,1), vField.GetData( ivec2(5,1) ).xy +vec2(0,20) *deltaT )
+        # print( "FORCE:", operationTimer.GetElapsedInSecond() )
 
         # compute pressure
         self._eq12CommonInfo.lQuantityField2D_1 = self._velocity2D_field2D
@@ -165,11 +159,13 @@ class Harris2004NavierStrokeSimulation:
             self.ExecuteShaderInplaceToFragments( self._shader_boundary, ivec4( 1, 0, self.gridSize.x -2, 1 ), self._pressure1nothin1_field2D )
             self._shader_boundary.offset = ivec2( 0, -1 )
             self.ExecuteShaderInplaceToFragments( self._shader_boundary, ivec4( 1, self.gridSize.y -1, self.gridSize.x -2, 1 ), self._pressure1nothin1_field2D )
+        # print( "PRESSURE WITH BOUNDARY:", operationTimer.GetElapsedInSecond() )
 
         # subtract pressure gradient
         self._eq12CommonInfo.lQuantityField2D_1 = self._pressure1nothin1_field2D
         self._eq12CommonInfo.lQuantityField2D_2 = self._velocity2D_field2D
         self.ExecuteShaderToInteriorFragments( self._shader_gradientSubtraction, self._gridSize, self._velocity2D_field2D )
+        # print( "SUBTRACT PRESSURE GRADIENT:", operationTimer.GetElapsedInSecond() )
 
         # velocity boundary condition
         self._eq12CommonInfo.lQuantityField2D_1 = self._velocity2D_field2D
@@ -182,6 +178,11 @@ class Harris2004NavierStrokeSimulation:
         self.ExecuteShaderInplaceToFragments( self._shader_boundary, ivec4( 1, 0, self.gridSize.x -2, 1 ), self._velocity2D_field2D )
         self._shader_boundary.offset = ivec2( 0, -1 )
         self.ExecuteShaderInplaceToFragments( self._shader_boundary, ivec4( 1, self.gridSize.y -1, self.gridSize.x -2, 1 ), self._velocity2D_field2D )
+        # print( "FINAL ADVECTION BOUNDARY:", operationTimer.GetElapsedInSecond() )
+
+        # print( "WHOLE LOOP", loopTimer.GetElapsedInSecond() )
+        # self._outerLoopTimer = LoopTimer()
+        self.devTmp_stepCnt += 1
 
     @staticmethod
     def ExecuteShaderInplaceToFragments(

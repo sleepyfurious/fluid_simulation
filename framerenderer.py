@@ -4,6 +4,8 @@ from OpenGL.GL import *
 import glm
 
 from sleepy_mockup_glslsampler import *
+from glsl_wrangler import BuildPipelineProgram
+import glsw_scenebox
 
 
 def CompileShaderProgram( vertShaderSrc: str, fragShaderSrc: str )-> GLhandle:
@@ -41,7 +43,7 @@ def CompileShaderProgram( vertShaderSrc: str, fragShaderSrc: str )-> GLhandle:
 class FrameRenderer:
     def __init__( self, fieldSize: glm.ivec3 ):
         self._velocityLineProgram = CompileShaderProgram( _velocityLineVertShader, _opaqueShadelessFragShader )
-        self._sceneBoxWireProgram = CompileShaderProgram( _sceneBoxWireVertShader, _opaqueShadelessFragShader )
+        self._sceneBoxWireProgramInfo = BuildPipelineProgram( glsw_scenebox, '330 core', "TEST" )
         self._vao_blank = glGenVertexArrays( 1 )
         self._fieldSize = fieldSize
 
@@ -61,7 +63,7 @@ class FrameRenderer:
 
     def __del__(self):
         glDeleteProgram( self._velocityLineProgram )
-        glDeleteProgram( self._sceneBoxWireProgram )
+        glDeleteProgram( self._sceneBoxWireProgramInfo.__progHandle__ )
         glDeleteVertexArrays( [ self._vao_blank ] )
 
     def RenderToDrawBuffer_VelocityLine ( self, vpMat: glm.mat4,
@@ -87,14 +89,17 @@ class FrameRenderer:
 
     def RenderToDrawBuffer_SceneBoxWire ( self, vpMat: glm.mat4, boxSize: glm.vec3 ):
         glBindVertexArray( self._vao_blank )
-        glUseProgram( self._sceneBoxWireProgram )
+        glUseProgram( self._sceneBoxWireProgramInfo.__progHandle__ )
 
-        glUniform3fv( glGetUniformLocation( self._sceneBoxWireProgram, 'boxSize' ), 1, list( boxSize ) )
-        glUniformMatrix4fv( glGetUniformLocation( self._sceneBoxWireProgram, 'vpMat' ), 1, GL_FALSE, list( vpMat ) )
+        glUniform3fv( self._sceneBoxWireProgramInfo.boxSize, 1, list( boxSize ) )
+        glUniformMatrix4fv( self._sceneBoxWireProgramInfo.vpMat, 1, GL_FALSE, list( vpMat ) )
         glDrawArrays( GL_LINES, 0, 24 )
 
         glUseProgram( 0 )
         glBindVertexArray( 0 )
+
+    def GetSceneBoxCursorIntersection ( self, vpMat: glm.mat4, boxSize: glm.vec3, screenspaceCursorPos: glm.ivec2 )-> glm.vec3:
+        pass
 
 
 _velocityLineVertShader = """
@@ -140,31 +145,6 @@ void main ( void ) {
     }
 
     gl_Position = vpMat *vec4( gridGroundCenteredCellPos, 1 );
-}
-"""
-
-_sceneBoxWireVertShader = """
-#version 330 core
-#line 114
-
-uniform mat4 vpMat = mat4( 1 );
-uniform vec3 boxSize = vec3( 1 );
-
-void main ( void ) {
-    vec3 boxVertices[8] = vec3[8](  vec3( 1, 1, 1 ), vec3( 1, 1,-1 ),
-                                    vec3(-1, 1, 1 ), vec3(-1, 1,-1 ),
-                                    vec3(-1,-1, 1 ), vec3(-1,-1,-1 ),
-                                    vec3( 1,-1, 1 ), vec3( 1,-1,-1 )  );
-    vec3 boxLineVertices[24] = vec3[24](
-        boxVertices[0], boxVertices[1],  boxVertices[2], boxVertices[3],
-        boxVertices[4], boxVertices[5],  boxVertices[6], boxVertices[7],
-        boxVertices[0], boxVertices[2],  boxVertices[2], boxVertices[4],
-        boxVertices[4], boxVertices[6],  boxVertices[6], boxVertices[0],
-        boxVertices[1], boxVertices[3],  boxVertices[3], boxVertices[5],
-        boxVertices[5], boxVertices[7],  boxVertices[7], boxVertices[1]
-    );
-
-    gl_Position = vpMat * vec4( 0.5 *boxSize *boxLineVertices[ gl_VertexID ], 1 );
 }
 """
 

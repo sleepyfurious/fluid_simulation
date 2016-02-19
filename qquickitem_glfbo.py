@@ -4,33 +4,35 @@
 # - Qt Quick > Scene Graph - OpenGL Under QML
 # - Qt Quick > Scene Graph - Rendering FBOs
 
+from    PyQt5.QtCore    import Qt
 from    PyQt5.QtQml     import qmlRegisterType
 from    PyQt5.QtQuick   import QQuickFramebufferObject
+from    PyQt5.QtGui     import QMouseEvent
 import  glm
 
 # an Interface class for making a OpenGL Viewport
 class GlFboViewportI:
-    def __init__( self ):
-        raise NotImplementedError
+    def __init__( self ): raise NotImplementedError
 
     # To let client consume the result fbo (e.g. show up on screen). Implementation class draw into specified fbo using
     # provided fboName. GLContext will pre-makeCurrented, don’t expect a clean OpenGL state, also check/create GLContext
     # dependent here.
-    def Draw( self, fboName: int, fboSize: glm.ivec2 ):
-        raise NotImplementedError
+    def Draw( self, fboName: int, fboSize: glm.ivec2 ): raise NotImplementedError
 
     # Cleanup everything GLContext dependent here.
-    def Cleanup( self ):
-        raise NotImplementedError
+    def Cleanup( self ): raise NotImplementedError
+
+    def MousePressdMovedReleasedEvent( self, e: QMouseEvent ): raise NotImplementedError
 
 class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
 
     def __init__( self, parent=None ):
         super( QquickItemFromGlFboViewportAdapter, self ).__init__( parent )
-        self.viewport = None #type: GlFboViewportI
+        self._viewport = None #type: GlFboViewportI
+        self.setAcceptedMouseButtons( Qt.AllButtons )
 
     def SetViewport( self, viewport: GlFboViewportI ):
-        self.viewport = viewport
+        self._viewport = viewport
 
     class _ViewportStub( QQuickFramebufferObject.Renderer ):
         def __init__( self, owner ):
@@ -40,10 +42,10 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
         def synchronize( self, item ): pass
 
         def render( self ):
-            if self.owner.viewport is None: return
+            if self.owner._viewport is None: return
 
             size = self.framebufferObject().size()
-            self.owner.viewport.Draw( self.framebufferObject().handle(), glm.ivec2( size.width(), size.height() ) )
+            self.owner._viewport.Draw( self.framebufferObject().handle(), glm.ivec2( size.width(), size.height() ) )
             self.owner.window().resetOpenGLState()
 
     #- below is to compile with QQuickFramebufferObject ----------------------------------------------------------------
@@ -51,8 +53,16 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
         return self._ViewportStub( self )
 
     def releaseResources( self ):
-        if not self.viewport is None: self.viewport.Cleanup()
+        if not self._viewport is None: self._viewport.Cleanup( )
         super( QquickItemFromGlFboViewportAdapter, self ).releaseResources()
+
+    #- below is input event redirection
+    def mouseReleaseEvent ( self, e: QMouseEvent ):
+        if not self._viewport is None: self._viewport.MousePressdMovedReleasedEvent( e )
+    def mousePressEvent ( self, e: QMouseEvent ):
+        if not self._viewport is None: self._viewport.MousePressdMovedReleasedEvent( e )
+    def mouseMoveEvent ( self, e: QMouseEvent ):
+        if not self._viewport is None: self._viewport.MousePressdMovedReleasedEvent( e )
 
 qmlRegisterType( QquickItemFromGlFboViewportAdapter, "GlFboViewport", 1, 0, "GlFboViewportAdapter" )
 

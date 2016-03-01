@@ -26,6 +26,7 @@ DefineGLSLShaderProgram( GL_FRAGMENT_SHADER, """
 out vec4 color;
 
 void main ( void ) {
-    color = vec4( 0.044, 0.687, 0.800, 1.0 );
+    vec3 opaqueCol = vec3( 0.044, 0.687, 0.800 );
+    color = vec4( opaqueCol *( 1 -gl_FragCoord.z ), 1.0 );
 }
 """ )

@@ -1,7 +1,7 @@
 from    collections     import namedtuple
-from    math            import sqrt, radians
+from    math            import sqrt, degrees
 from    PyQt5.QtCore    import QObject, pyqtSignal
-import  glm
+from    PyQt5.QtGui     import QMatrix4x4, QVector3D
 
 from    hardcoded_const import *
 
@@ -14,15 +14,21 @@ class TurntableOrthographicCamera( QObject ):
         self._azimuth                = 0 #type: float
         self._altitude               = 0 #type: float
 
-    def GetViewMatrixOfTurntable( self, centerPivotPos: glm.vec3, height: float ) -> glm.mat4:
-        return  glm.mat4().rotate( self._altitude, horizontalVec ) \
-               *glm.mat4().rotate( self._azimuth, skyVec ) \
-               *glm.mat4().translate( -centerPivotPos )
+    def GetViewMatrixOfTurntable( self, centerPivotPos: QVector3D, height: float ) -> QMatrix4x4:
+        # Qt's matrix transformation functionality is post-multiplication, and interpret angle in degrees
+        ret = QMatrix4x4()
+        ret.rotate( degrees( self._altitude ), horizontalVec )
+        ret.rotate( degrees( self._azimuth ), skyVec )
+        ret.translate( -centerPivotPos )
+        return ret
 
-    def GetProjectionMatrixOfTurntable( self, radius: float, height: float )-> glm.mat4:
+    def GetProjectionMatrixOfTurntable( self, radius: float, height: float )-> QMatrix4x4:
         fb = self.GetOriginFrameBoundary( radius, height )
-        return glm.ortho( fb.left, fb.right, fb.bottom, fb.top, fb.near, fb.far )
+        ret = QMatrix4x4()
+        ret.ortho( fb.left, fb.right, fb.bottom, fb.top, fb.near, fb.far )
+        return ret
 
+    # let say for camera near is start at >0 origin and far is a distance
     FrameBoundary = namedtuple( 'FrameBoundary', [ 'top', 'bottom', 'left', 'right', 'near', 'far' ] )
 
     @staticmethod
@@ -31,14 +37,7 @@ class TurntableOrthographicCamera( QObject ):
 
         return TurntableOrthographicCamera.FrameBoundary( halfFrameHeight, -halfFrameHeight,
                                                           -radius, radius,
-                                                          halfFrameHeight, -halfFrameHeight )
-
-    def GetLookVec( self )-> glm.vec3:
-        return glm.inverse( self.GetViewMatrixOfTurntable() ) *lookVec
-
-    def GetUpVec( self )-> glm.vec3:
-        return glm.inverse( self.GetViewMatrixOfTurntable() ) *skyVec
-
+                                                          -halfFrameHeight, halfFrameHeight )
     @property
     def azimuth( self ): return self._azimuth
 
@@ -52,4 +51,3 @@ class TurntableOrthographicCamera( QObject ):
 
     @altitude.setter
     def altitude( self, var: float ): self._altitude = var; self.StateChanged.emit()
-

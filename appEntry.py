@@ -3,12 +3,14 @@ from    PyQt5.QtCore    import QUrl, Qt
 from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat, QMouseEvent
 from    PyQt5.QtQuick   import QQuickView
 from    OpenGL.GL       import *
+import  glm
 
 import  qquickitem_glfbo
 import  framerenderer
 from    turntable_ortho_cam import *
 from    navierstroke import *
 from    looptimer import *
+import  util_datatype as utyp
 
 class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
     def __init__(self):
@@ -61,18 +63,23 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         # camera matrix
         sceneBoxSize = glm.vec3( 10, 10, 1 )
         sceneBoxTurntableRadius = sqrt( 0.25* sceneBoxSize.x *sceneBoxSize.x + 0.25 *sceneBoxSize.z *sceneBoxSize.z )
-        vpMat =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize.y ) \
-                *self.cam.GetViewMatrixOfTurntable( glm.vec3( 0 ), sceneBoxSize.y )
+        vpMat = utyp.GetGlmMat4(    self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize.y ) \
+                                   *self.cam.GetViewMatrixOfTurntable( QVector3D(), sceneBoxSize.y )    )
+        # import pdb
+        # pdb.set_trace()
         vpMat = glm.mat4().scale( glm.vec3( 1, -1 , 1 ) ) *vpMat
         #- ^ this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
 
         glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
+        glEnable( GL_BLEND ); glBlendFunc( GL_ONE, GL_ONE )
 
         self.frameRenderer.RenderToDrawBuffer_VelocityLine(
             vpMat, self.navierstrokeSim.GetACopyOfVelocity2DField2D(), self.navierstrokeSim.gridSpacing
         )
 
         self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( vpMat, sceneBoxSize )
+
+        glDisable( GL_BLEND )
 
     def Cleanup ( self ):
         if self.frameRenderer:

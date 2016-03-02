@@ -7,12 +7,13 @@ const vec3 BOX_VERTICES[8] = vec3[8](  vec3( 1, 1, 1 ), vec3( 1, 1,-1 ),
                                        vec3(-1,-1, 1 ), vec3(-1,-1,-1 ),
                                        vec3( 1,-1, 1 ), vec3( 1,-1,-1 )  );
 
-const vec3 BOX_LINEVERTICES[24] = vec3[24](  BOX_VERTICES[0], BOX_VERTICES[1],  BOX_VERTICES[2], BOX_VERTICES[3],
-                                             BOX_VERTICES[4], BOX_VERTICES[5],  BOX_VERTICES[6], BOX_VERTICES[7],
-                                             BOX_VERTICES[0], BOX_VERTICES[2],  BOX_VERTICES[2], BOX_VERTICES[4],
-                                             BOX_VERTICES[4], BOX_VERTICES[6],  BOX_VERTICES[6], BOX_VERTICES[0],
-                                             BOX_VERTICES[1], BOX_VERTICES[3],  BOX_VERTICES[3], BOX_VERTICES[5],
-                                             BOX_VERTICES[5], BOX_VERTICES[7],  BOX_VERTICES[7], BOX_VERTICES[1] );
+const int BOX_LINEVERTICESIDX[24] = int[24](    0, 1,  2, 3,    4, 5,  6, 7,
+                                                0, 2,  2, 4,    4, 6,  6, 0,
+                                                1, 3,  3, 5,    5, 7,  7, 1    );
+
+const int BOX_SURFTRIANGLEIDX[ 3 *2 *6 ] = int[ 3 *2 *6 ](  4,6,2, 2,6,0,   6,7,0, 0,7,1,
+                                                            7,5,1, 1,5,3,   5,4,3, 3,4,2,
+                                                            2,0,3, 3,0,1,   5,7,4, 4,7,6   );
 
 // UTIL ----------------------------------------------------------------------------------------------------------------
 
@@ -64,7 +65,17 @@ void main ( void ) {
         wPos = gridGroundCenteredCellPos;
 
      #elif  defined(SCENEBOX)
-        wPos = 0.5 *boxSize *BOX_LINEVERTICES[ gl_VertexID ];
+        int boxVertIdx;
+
+        #if/**/ defined(LINE)
+            boxVertIdx = BOX_LINEVERTICESIDX[ gl_VertexID ];
+
+         #elif  defined(SURF)
+            boxVertIdx = BOX_SURFTRIANGLEIDX[ gl_VertexID ];
+
+         #endif
+
+        wPos = 0.5 *boxSize *BOX_VERTICES[ boxVertIdx ];
 
      #endif
 

@@ -10,6 +10,8 @@ from    PyQt5.QtQml     import qmlRegisterType
 from    PyQt5.QtQuick   import QQuickFramebufferObject
 from    PyQt5.QtGui     import QMouseEvent
 
+import  util_datatype   as utyp
+
 class MouseEvent:
     PRESS   = 1
     RELEASE = 2
@@ -58,7 +60,7 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
         def render( self ):
             if self.owner._viewport is None: return
 
-            size = self.framebufferObject().size()
+            size = QPoint( *utyp.GetTuple( self.framebufferObject().size() ) )
 
             for e in self.owner._eventQueue:
                 self.owner._viewport.MousePressdMovedReleasedEvent( e, size )

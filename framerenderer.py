@@ -1,21 +1,27 @@
 "As noted"
 
+from PyQt5.QtCore import QPoint
+from PyQt5.QtGui  import QMatrix4x4, QVector3D
 from OpenGL.GL import *
 import glm
 
+import util_datatype    as utyp
 import util_glwrapper as uglw
 from sleepy_mockup_glslsampler import *
 from util_glshaderwrangler import BuildPipelineProgram
 import framerenderer_glsw as glsw
+from framerenderer_offscreendepth import *
 
 
 """All method must be invoked in the same living OpenGL 3.3 context"""
 class FrameRenderer:
     def __init__( self, fieldSize: glm.ivec3 ):
-        self._velocityLineProgramInfo = BuildPipelineProgram( glsw.v, glsw.f, ("GRID",) )
-        self._sceneBoxWireProgramInfo = BuildPipelineProgram( glsw.v, glsw.f, ("SCENEBOX",) )
-        self._vao_blank = glGenVertexArrays( 1 )
         self._fieldSize = fieldSize
+        self._vao_blank = glGenVertexArrays( 1 )
+        self._velocityLineProgramInfo = BuildPipelineProgram( glsw.v, glsw.f, ( "GRID",) )
+        self._sceneBoxWireProgramInfo = BuildPipelineProgram( glsw.v, glsw.f, ( "SCENEBOX", "LINE" ) )
+        self._sceneBoxSurfProgramInfo = BuildPipelineProgram( glsw.v, glsw.f, ( "SCENEBOX", "SURF" ) )
+        self._depthInteractionBuffer  = OffScreenDepthFramebuffer()
 
         with uglw.ProgBound( self._velocityLineProgramInfo.__progHandle__ ):
             glUniform3iv( self._velocityLineProgramInfo.gridN, 1, list( fieldSize ) )
@@ -27,9 +33,10 @@ class FrameRenderer:
             uglw.TextureMinMaxNEAREST( GL_TEXTURE_2D )
 
     def __del__(self):
+        glDeleteVertexArrays( [ self._vao_blank ] )
         glDeleteProgram( self._velocityLineProgramInfo.__progHandle__ )
         glDeleteProgram( self._sceneBoxWireProgramInfo.__progHandle__ )
-        glDeleteVertexArrays( [ self._vao_blank ] )
+        del self._depthInteractionBuffer
 
     def RenderToDrawBuffer_VelocityLine ( self, vpMat: glm.mat4,
         velocity2DField2D: Vec2DField2D, fieldSpacing: float
@@ -54,5 +61,24 @@ class FrameRenderer:
                 glUniformMatrix4fv( self._sceneBoxWireProgramInfo.vpMat, 1, GL_FALSE, list( vpMat ) )
                 glDrawArrays( GL_LINES, 0, 24 )
 
-    def GetSceneBoxCursorIntersection ( self, vpMat: glm.mat4, boxSize: glm.vec3, screenspaceCursorPos: glm.ivec2 )-> glm.vec3:
-        pass
+    def GetSceneBoxCursorIntersection (
+        self, vpMat: QMatrix4x4, boxSize: QVector3D, winspaceCursorPos: QPoint, winspaceDimension
+    )-> QVector3D:
+        """
+        :param winspaceCursorPos: lower-left corner as origin
+        :return: 3D world position of cursor interaction
+        """
+        self._depthInteractionBuffer.RequestBindFBO( winspaceDimension )
+
+        glClearBufferfv( GL_DEPTH, 0, ( 1., ) )
+
+        with uglw.VAOBound( self._vao_blank ):
+            with uglw.ProgBound( self._sceneBoxSurfProgramInfo.__progHandle__ ):
+                glUniform3fv( self._sceneBoxSurfProgramInfo.boxSize, 1, utyp.GetTuple( boxSize ) )
+                glUniformMatrix4fv( self._sceneBoxSurfProgramInfo.vpMat, 1, GL_FALSE, vpMat.data() )
+                glDrawArrays( GL_TRIANGLES, 0, 3 *2 *6 )
+
+        glBindFramebuffer( GL_FRAMEBUFFER, 0 )
+        print( winspaceCursorPos )
+
+

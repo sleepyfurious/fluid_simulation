@@ -1,4 +1,4 @@
-from PyQt5.QtGui    import QVector2D
+from PyQt5.QtCore   import QPoint
 from OpenGL.GL      import *
 
 import util_glwrapper as uglw
@@ -6,7 +6,7 @@ import util_glwrapper as uglw
 """create depth-only FBO with texture and enlarge when require"""
 class OffScreenDepthFramebuffer:
     def __init__(self):
-        self._allocatedSize = QVector2D()
+        self._allocatedSize = QPoint()
         self._fboName = 0
         self._texname = 0
 
@@ -14,7 +14,7 @@ class OffScreenDepthFramebuffer:
         glDeleteFramebuffers( [ self._fboName ] )
         glDeleteTextures( [ self._texname ] )
 
-    def RequestBindFBO(self, targetSize: QVector2D ):
+    def RequestBindFBO(self, targetSize: QPoint ):
         if self._fboName == 0: self._fboName = glGenFramebuffers( 1 )
 
         if self._allocatedSize != targetSize:
@@ -23,7 +23,7 @@ class OffScreenDepthFramebuffer:
             self._texname = glGenTextures( 1 )
             with uglw.TextureBound( GL_TEXTURE_2D, self._texname ):
                 glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
-                              targetSize.x, targetSize.y, 0, GL_DEPTH_COMPONENT,
+                              targetSize.x(), targetSize.y(), 0, GL_DEPTH_COMPONENT,
                               GL_FLOAT, 0 ) # don't care these last 2 param for input data
 
             with uglw.FBOBound( self._fboName ):

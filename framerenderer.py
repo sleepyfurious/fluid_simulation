@@ -43,7 +43,7 @@ def CompileShaderProgram( vertShaderSrc: str, fragShaderSrc: str )-> GLhandle:
 class FrameRenderer:
     def __init__( self, fieldSize: glm.ivec3 ):
         self._velocityLineProgram = CompileShaderProgram( _velocityLineVertShader, _opaqueShadelessFragShader )
-        self._sceneBoxWireProgramInfo = BuildPipelineProgram( glsw_scenebox, '330 core', "TEST" )
+        self._sceneBoxWireProgramInfo = BuildPipelineProgram( glsw_scenebox.v, glsw_scenebox.f, "TEST" )
         self._vao_blank = glGenVertexArrays( 1 )
         self._fieldSize = fieldSize
 

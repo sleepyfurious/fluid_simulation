@@ -1,6 +1,6 @@
 from glsl_wrangler import *
 
-DefineGLSLShaderProgram( GL_VERTEX_SHADER, """
+v = DefineGLSLShaderProgram( GL_VERTEX_SHADER, 'scenebox vert', """
 uniform mat4 vpMat = mat4( 1 );
 uniform vec3 boxSize = vec3( 1 );
 
@@ -22,7 +22,7 @@ void main ( void ) {
 }
 """ )
 
-DefineGLSLShaderProgram( GL_FRAGMENT_SHADER, """
+f = DefineGLSLShaderProgram( GL_FRAGMENT_SHADER, 'scenebox frag', """
 out vec4 color;
 
 void main ( void ) {

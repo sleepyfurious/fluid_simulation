@@ -146,7 +146,7 @@ class Harris2004NavierStrokeSimulation:
         self._eq12CommonInfo.lQuantityField2D_1 = self._pressure1nothin1_field2D
         self._eq12CommonInfo.lQuantityField2D_2 = self._intermediateVal_field2D
         self._shader_jacobi.alphaRbeta = vec2( -dX2, 1 /4 )
-        for i in range( 40 ):
+        for i in range( 1 ):
             self.ExecuteShaderToInteriorFragments( self._shader_jacobi, self._gridSize, self._pressure1nothin1_field2D )
             # pressure boundary condition
             self._shader_boundary.scale = 1.0

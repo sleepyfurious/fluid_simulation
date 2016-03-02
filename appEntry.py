@@ -45,9 +45,6 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         print( "frameCounter:", self.frameCounter )
         self.frameCounter += 1
 
-        # self.cam.azimuth  += radians( 0.4 )
-        # self.cam.altitude += radians( 0.1 )
-
         if not self.frameRenderer:
             self.frameRenderer = framerenderer.FrameRenderer( ivec3( self.navierstrokeSim.gridSize, 1 ) )
 

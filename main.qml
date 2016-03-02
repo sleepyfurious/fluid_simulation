@@ -14,7 +14,5 @@ Item {
         id: glFboViewportAdapter
         objectName: "glFboViewportAdapter"
         anchors.fill: parent
-        anchors.margins: 20
-        rotation: 5
     }
 }

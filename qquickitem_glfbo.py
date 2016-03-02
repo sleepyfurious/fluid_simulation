@@ -3,12 +3,25 @@
 # dev prerequisite in Qt 5.5.1 Reference Documentation:
 # - Qt Quick > Scene Graph - OpenGL Under QML
 # - Qt Quick > Scene Graph - Rendering FBOs
+# - Qt Quick > Scene Graph - Qt Quick Scene Graph > Scene Graph and Rendering ( Threading )
 
-from    PyQt5.QtCore    import Qt
+from    PyQt5.QtCore    import Qt, QPoint
 from    PyQt5.QtQml     import qmlRegisterType
 from    PyQt5.QtQuick   import QQuickFramebufferObject
 from    PyQt5.QtGui     import QMouseEvent
-import  glm
+
+class MouseEvent:
+    PRESS   = 1
+    RELEASE = 2
+    MOVE    = 3
+    _eventName = { 1:"press", 2:"release", 3:"move" }
+
+    def __init__( self, type, pos: QPoint ):
+        self.type  = type
+        self.pos   = pos
+
+    def __str__(self):
+        return "MouseEvent: " +self._eventName[ self.type ] + " @" +str(self.pos.x()) +',' +str(self.pos.y())
 
 # an Interface class for making a OpenGL Viewport
 class GlFboViewportI:
@@ -17,18 +30,19 @@ class GlFboViewportI:
     # To let client consume the result fbo (e.g. show up on screen). Implementation class draw into specified fbo using
     # provided fboName. GLContext will pre-makeCurrented, don’t expect a clean OpenGL state, also check/create GLContext
     # dependent here.
-    def Draw( self, fboName: int, fboSize: glm.ivec2 ): raise NotImplementedError
+    def Draw( self, fboName: int, viewSize: QPoint ): raise NotImplementedError
 
     # Cleanup everything GLContext dependent here.
     def Cleanup( self ): raise NotImplementedError
 
-    def MousePressdMovedReleasedEvent( self, e: QMouseEvent ): raise NotImplementedError
+    def MousePressdMovedReleasedEvent( self, e: MouseEvent, viewSize: QPoint ): raise NotImplementedError
 
 class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
 
     def __init__( self, parent=None ):
         super( QquickItemFromGlFboViewportAdapter, self ).__init__( parent )
         self._viewport = None #type: GlFboViewportI
+        self._eventQueue = []
         self.setAcceptedMouseButtons( Qt.AllButtons )
 
     def SetViewport( self, viewport: GlFboViewportI ):
@@ -45,7 +59,12 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
             if self.owner._viewport is None: return
 
             size = self.framebufferObject().size()
-            self.owner._viewport.Draw( self.framebufferObject().handle(), glm.ivec2( size.width(), size.height() ) )
+
+            for e in self.owner._eventQueue:
+                self.owner._viewport.MousePressdMovedReleasedEvent( e, size )
+            self.owner._eventQueue = []
+
+            self.owner._viewport.Draw( self.framebufferObject().handle(), size )
             self.owner.window().resetOpenGLState()
 
     #- below is to compile with QQuickFramebufferObject ----------------------------------------------------------------
@@ -57,12 +76,25 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
         super( QquickItemFromGlFboViewportAdapter, self ).releaseResources()
 
     #- below is input event redirection
-    def mouseReleaseEvent ( self, e: QMouseEvent ):
-        if not self._viewport is None: self._viewport.MousePressdMovedReleasedEvent( e )
-    def mousePressEvent ( self, e: QMouseEvent ):
-        if not self._viewport is None: self._viewport.MousePressdMovedReleasedEvent( e )
-    def mouseMoveEvent ( self, e: QMouseEvent ):
-        if not self._viewport is None: self._viewport.MousePressdMovedReleasedEvent( e )
+    def mouseReleaseEvent ( self, e: QMouseEvent ): self.QueueMouseEvent( e )
+    def mousePressEvent ( self, e: QMouseEvent ):   self.QueueMouseEvent( e )
+    def mouseMoveEvent ( self, e: QMouseEvent ):    self.QueueMouseEvent( e )
+    def QueueMouseEvent ( self, e: QMouseEvent ):
+        # Queue so that GlFboViewport can process it in RenderingThread. consumer and provider have no overlapping
+        # execution between GUI and Rendering Thread, so that we can assume thread-safety. I queue our own MouseEvent
+        # class so that it's data is not interfere by Qt's GUI thread, i.e. delete event before rendering
+        if self._viewport is None: return
+
+        if e.button() == Qt.LeftButton:
+            if      e.type() == QMouseEvent.MouseButtonPress:
+                self._eventQueue.append( MouseEvent( MouseEvent.PRESS, e.pos() ) )
+            elif    e.type() == QMouseEvent.MouseButtonRelease:
+                self._eventQueue.append( MouseEvent( MouseEvent.RELEASE, e.pos() ) )
+
+        elif e.type() == QMouseEvent.MouseMove:
+            self._eventQueue.append( MouseEvent( MouseEvent.MOVE, e.pos() ) )
+
+
 
 qmlRegisterType( QquickItemFromGlFboViewportAdapter, "GlFboViewport", 1, 0, "GlFboViewportAdapter" )
 
@@ -92,7 +124,7 @@ if __name__ == "__main__":
 
         def Cleanup ( self ): pass
 
-        def Draw ( self, fboName: int, fboSize: glm.ivec2 ):
+        def Draw ( self, fboName: int, viewSize: QPoint):
             if self.frameCount %100 > 50:
                 glClearBufferfv( GL_COLOR, 0, ( 1, .5, .5, 1 ) )
             else:

@@ -1,6 +1,6 @@
 import  sys
-from    PyQt5.QtCore    import QUrl, Qt
-from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat, QMouseEvent
+from    PyQt5.QtCore    import QUrl, Qt, QPoint
+from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat
 from    PyQt5.QtQuick   import QQuickView
 from    OpenGL.GL       import *
 import  glm
@@ -83,18 +83,8 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
             del self.framerenderer
             self.frameRenderer = None
 
-    def MousePressdMovedReleasedEvent ( self, e: QMouseEvent ):
-        if e.button() == Qt.LeftButton:
-            if e.type() == QMouseEvent.MouseButtonPress:
-                # create the manipulator
-                print( "left pressed", e.pos() )
-            if e.type() == QMouseEvent.MouseButtonRelease:
-                # kill the manipulator
-                print( "left released", e.pos() )
-
-        if e.type() == QMouseEvent.MouseMove and 'Manipulator is there':
-            # update the manipulator and apply result
-            print( "left moved", e.pos() )
+    def MousePressdMovedReleasedEvent ( self, e: qquickitem_glfbo.MouseEvent, viewSize: QPoint ):
+        print( e )
 
 
 fluidSimulationApp = FluidSimulationApp()

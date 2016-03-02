@@ -11,6 +11,9 @@ def ProgBound( progName ): glUseProgram( progName ); yield; glUseProgram( 0 );
 @contextmanager
 def TextureBound( target, texName ): glBindTexture( target, texName ); yield; glBindTexture( target, 0 )
 
+@contextmanager
+def FBOBound( fboName ): glBindFramebuffer( GL_FRAMEBUFFER, fboName ); yield; glBindFramebuffer( GL_FRAMEBUFFER, 0 )
+
 def TextureMinMaxNEAREST( target ):
     glTexParameteri( target, GL_TEXTURE_MIN_FILTER, GL_NEAREST )
     glTexParameteri( target, GL_TEXTURE_MAG_FILTER, GL_NEAREST )

@@ -50,6 +50,9 @@ class ManipulatorTrackball:
 
         return endPosInInteractionPlain -self._startPosInInteractionPlain
 
+    def GetInteractionRadius( self )-> float:
+        return self._interactionTrackballRadius
+
     @staticmethod
     def GetTangentingPlainOfSphere( sphCenterPos: vec3, sphRadius: float, sphereNormal: vec3 )-> _Plain:
         """Get a tangenting plain of a sphere with the tangent being the plain's sampled point."""
@@ -63,7 +66,7 @@ class ManipulatorTrackball:
 
         # trace our cursor Pos back to the interaction plain
         sampledPointOfInteractionRay = cursorRaySampledPosition -cursorVec
-        if _Dot( cursorRaySampledPosition -sampledPointOfInteractionRay, interactionPlain.normal ) <= _floatEpsilon :
+        if _Dot( sampledPointOfInteractionRay -cursorRaySampledPosition, interactionPlain.normal ) <= _floatEpsilon :
             raise ValueError # undefinded interaction
 
         # from cyrusbeck.pdf (Cyrus Beck Line Clipping) in workspace 20131221.CUCG.projectRat

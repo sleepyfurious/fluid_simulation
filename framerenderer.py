@@ -86,11 +86,15 @@ class FrameRenderer:
         # unproject cursor into worldCoord
         winspaceCursorDepthValue = depthImage[ winspaceCursorPos.y() ][ winspaceCursorPos.x() ]
 
+        if winspaceCursorDepthValue == 1.0:
+            raise ValueError # cursor ray hit background, no object to manipulate
+
+        return self.GetUnprojection( winspaceCursorPos, winspaceCursorDepthValue, winspaceDimension, vpMat )
+
+    @staticmethod
+    def GetUnprojection( winXY: QPoint, winZ: float, winWH: QPoint, vpMat: QMatrix4x4 )-> QVector3D:
         #- from gluUnproject definition, I don't consider glViewport
-        ndcspaceCursorPos = QVector4D(
-            ( QVector2D(winspaceCursorPos) /QVector2D(winspaceDimension) ) *2 -QVector2D(1,1),
-            winspaceCursorDepthValue *2 -1, 1
-        )
+        ndcspaceCursorPos = QVector4D( ( QVector2D(winXY) /QVector2D(winWH) ) *2 -QVector2D(1,1), winZ *2 -1, 1 )
 
         invertedVpMat, success = vpMat.inverted()
         if not success: raise NotImplementedError

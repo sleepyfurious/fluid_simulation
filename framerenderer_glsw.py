@@ -56,13 +56,13 @@ void main ( void ) {
 
         ivec3   cellCoord           = GetIndex3Dfrom1D( cellID, gridN.xy );
         vec3    gridScaledCellPos   = ( gridSize *cellCoord ) / gridN;
-        vec3    gridGroundCenteredCellPos = gridScaledCellPos -gridCenterPos;
+        vec3    gridCenteredCellPos = gridScaledCellPos -gridCenterPos;
 
         if ( isTail ) {
-            gridGroundCenteredCellPos += vec3( texelFetch( velocityField, cellCoord.xy, 0 ).xy, 0 );
+            gridCenteredCellPos += vec3( texelFetch( velocityField, cellCoord.xy, 0 ).xy, 0 );
         }
 
-        wPos = gridGroundCenteredCellPos;
+        wPos = gridCenteredCellPos;
 
      #elif  defined(SCENEBOX)
         int boxVertIdx;

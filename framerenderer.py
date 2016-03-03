@@ -2,7 +2,7 @@
 
 import  typing          as T
 from    PyQt5.QtCore    import QPoint
-from    PyQt5.QtGui     import QMatrix4x4, QVector3D
+from    PyQt5.QtGui     import QVector2D, QVector3D, QVector4D, QMatrix4x4
 from    OpenGL.GL       import *
 
 import  util_datatype   as utyp
@@ -62,21 +62,38 @@ class FrameRenderer:
                 glDrawArrays( GL_LINES, 0, 24 )
 
     def GetSceneBoxCursorIntersection (
-        self, vpMat: QMatrix4x4, boxSize: QVector3D, winspaceCursorPos: QPoint, winspaceDimension
+        self, vpMat: QMatrix4x4, boxSize: QVector3D, winspaceCursorPos: QPoint, winspaceDimension: QPoint
     )-> QVector3D:
         """
         :param winspaceCursorPos: lower-left corner as origin
         :return: 3D world position of cursor interaction
         """
-        self._depthInteractionBuffer.RequestBindFBO( winspaceDimension )
 
-        glClearBufferfv( GL_DEPTH, 0, ( 1., ) )
+        # render depthImage --------------------------------------------------------------------------------------------
+        self._depthInteractionBuffer.RequestBindFBO( winspaceDimension )
 
         with uglw.VAOBound( self._vao_blank ):
             with uglw.ProgBound( self._sceneBoxSurfProgramInfo.__progHandle__ ):
-                glUniform3fv( self._sceneBoxSurfProgramInfo.boxSize, 1, utyp.GetTuple( boxSize ) )
-                glUniformMatrix4fv( self._sceneBoxSurfProgramInfo.vpMat, 1, GL_FALSE, vpMat.data() )
-                glDrawArrays( GL_TRIANGLES, 0, 3 *2 *6 )
+                with uglw.EnableScope( GL_DEPTH_TEST ):
+                    glClearBufferfv( GL_DEPTH, 0, ( 1., ) )
+                    glUniform3fv( self._sceneBoxSurfProgramInfo.boxSize, 1, utyp.GetTuple( boxSize ) )
+                    glUniformMatrix4fv( self._sceneBoxSurfProgramInfo.vpMat, 1, GL_FALSE, vpMat.data() )
+                    glDrawArrays( GL_TRIANGLES, 0, 3 *2 *6 )
 
+        depthImage = glReadPixels( 0, 0, winspaceDimension.x(), winspaceDimension.y(), GL_DEPTH_COMPONENT, GL_FLOAT )
         glBindFramebuffer( GL_FRAMEBUFFER, 0 )
-        print( winspaceCursorPos )
+
+        # unproject cursor into worldCoord
+        winspaceCursorDepthValue = depthImage[ winspaceCursorPos.y() ][ winspaceCursorPos.x() ]
+
+        #- from gluUnproject definition, I don't consider glViewport
+        ndcspaceCursorPos = QVector4D(
+            ( QVector2D(winspaceCursorPos) /QVector2D(winspaceDimension) ) *2 -QVector2D(1,1),
+            winspaceCursorDepthValue *2 -1, 1
+        )
+
+        invertedVpMat, success = vpMat.inverted()
+        if not success: raise NotImplementedError
+        wspaceCursorPos = invertedVpMat *ndcspaceCursorPos
+
+        return QVector3D( wspaceCursorPos ) /wspaceCursorPos.w()

@@ -60,16 +60,19 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.navierstrokeSim.Step( deltaT )
 
         vpMat = self._GetVPMat()
+        qQuickWorkaround = QMatrix4x4()
+        qQuickWorkaround.scale( QVector3D( 1,-1, 1 ) )
+        #- ^ this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
 
         with uglw.FBOBound( fboName ):
             glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
             with uglw.EnableScope( GL_BLEND ):
                 glBlendFunc( GL_ONE, GL_ONE )
 
-                self.frameRenderer.RenderToDrawBuffer_VelocityLine( vpMat,
+                self.frameRenderer.RenderToDrawBuffer_VelocityLine( qQuickWorkaround *vpMat,
                                                                     self.navierstrokeSim.GetACopyOfVelocity2DField2D(),
                                                                     self.navierstrokeSim.gridSpacing )
-                self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( vpMat, self.sceneBoxSize )
+                self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( qQuickWorkaround *vpMat, self.sceneBoxSize )
 
     def Cleanup ( self ):
         if self.frameRenderer:
@@ -91,11 +94,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         ret =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize[1] ) \
                *self.cam.GetViewMatrixOfTurntable( QVector3D(), sceneBoxSize[1] )
 
-        qQuickWorkaround = QMatrix4x4()
-        qQuickWorkaround.scale( QVector3D( 1,-1, 1 ) )
-        #- ^ this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
-
-        return qQuickWorkaround *ret
+        return ret
 
 
 fluidSimulationApp = FluidSimulationApp()

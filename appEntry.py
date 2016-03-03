@@ -34,7 +34,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.frameRenderer      = None
         self.cam                = TurntableOrthographicCamera()
         self.navierstrokeSim    = Harris2004NavierStrokeSimulation( ivec2(10), 1.0 )
-        self.sceneBoxSize       = glm.vec3( 10, 10, 1 )
+        self.sceneBoxSize       = QVector3D( 10, 10, 1 )
         self.loopTimer          = None
         self.frameCounter       = 0
 
@@ -48,7 +48,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         self.frameCounter += 1
 
         if not self.frameRenderer:
-            self.frameRenderer = framerenderer.FrameRenderer( ivec3( self.navierstrokeSim.gridSize, 1 ) )
+            self.frameRenderer = framerenderer.FrameRenderer( tuple( self.navierstrokeSim.gridSize ) +( 1,) )
 
         if not self.loopTimer:
             self.loopTimer = LoopTimer()
@@ -59,7 +59,7 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
         # realtime timestep simulation
         self.navierstrokeSim.Step( deltaT )
 
-        vpMat = utyp.GetGlmMat4( self._GetVPMat() )
+        vpMat = self._GetVPMat()
 
         with uglw.FBOBound( fboName ):
             glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
@@ -78,17 +78,18 @@ class FluidSimulationApp( qquickitem_glfbo.GlFboViewportI ):
 
     def MousePressdMovedReleasedEvent ( self, e: qquickitem_glfbo.MouseEvent, viewSize: QPoint ):
         if e.type == qquickitem_glfbo.MouseEvent.PRESS:
-            self.frameRenderer.GetSceneBoxCursorIntersection(
-                self._GetVPMat(), QVector3D( *tuple( self.sceneBoxSize ) ),
-                QPoint( e.pos.x(), viewSize.y() -e.pos.y() ), viewSize
-            )
+            wPosCursorIntersection = self.frameRenderer.GetSceneBoxCursorIntersection(
+                                        self._GetVPMat(), self.sceneBoxSize,
+                                        QPoint( e.pos.x(), viewSize.y() -e.pos.y() ), viewSize
+                                     )
+
 
     def _GetVPMat( self )-> QMatrix4x4:
         # camera matrix
-        sceneBoxSize = self.sceneBoxSize
-        sceneBoxTurntableRadius = sqrt( 0.25* sceneBoxSize.x *sceneBoxSize.x + 0.25 *sceneBoxSize.z *sceneBoxSize.z )
-        ret =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize.y ) \
-               *self.cam.GetViewMatrixOfTurntable( QVector3D(), sceneBoxSize.y )
+        sceneBoxSize = utyp.GetTuple( self.sceneBoxSize )
+        sceneBoxTurntableRadius = sqrt( 0.25 *sceneBoxSize[0] *sceneBoxSize[0] +0.25 *sceneBoxSize[2] *sceneBoxSize[2] )
+        ret =  self.cam.GetProjectionMatrixOfTurntable( sceneBoxTurntableRadius, sceneBoxSize[1] ) \
+               *self.cam.GetViewMatrixOfTurntable( QVector3D(), sceneBoxSize[1] )
 
         qQuickWorkaround = QMatrix4x4()
         qQuickWorkaround.scale( QVector3D( 1,-1, 1 ) )

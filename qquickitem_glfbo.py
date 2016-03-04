@@ -97,7 +97,6 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
             self._eventQueue.append( MouseEvent( MouseEvent.MOVE, e.pos() ) )
 
 
-
 qmlRegisterType( QquickItemFromGlFboViewportAdapter, "GlFboViewport", 1, 0, "GlFboViewportAdapter" )
 
 ## USAGE EXAMPLE #######################################################################################################

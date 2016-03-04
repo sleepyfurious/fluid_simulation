@@ -1,24 +1,25 @@
 from    collections     import namedtuple
 from    math            import sqrt, degrees
-from    PyQt5.QtCore    import QObject, pyqtSignal
-from    PyQt5.QtGui     import QMatrix4x4, QVector3D
+from    PyQt5.QtGui     import QVector3D, QMatrix4x4
 
-from    hardcoded_const import *
+from    hardcoded_const import DirectionVec as dvec
 
-class TurntableOrthographicCamera( QObject ):
+class TurntableOrthographicCamera:
 
-    def __init__( self ):
-        super( TurntableOrthographicCamera, self ).__init__()
-
+    def __init__( self, copyOriginal =None ):
         # in radius
-        self._azimuth                = 0 #type: float
-        self._altitude               = 0 #type: float
+        self.azimuth  = 0 #type: float
+        self.altitude = 0 #type: float
+
+        if not copyOriginal is None:
+            self.azimuth  = copyOriginal.azimuth
+            self.altitude = copyOriginal.altitude
 
     def GetViewMatrixOfTurntable( self, centerPivotPos: QVector3D, height: float ) -> QMatrix4x4:
-        # Qt's matrix transformation functionality is post-multiplication, and interpret angle in degrees
+        # Qt's matrix transformation method is post-multiplication, and interpret angle in degrees
         ret = QMatrix4x4()
-        ret.rotate( degrees( self._altitude ), horizontalVec )
-        ret.rotate( degrees( self._azimuth ), skyVec )
+        ret.rotate( degrees( self.altitude ), dvec.horizontalVec )
+        ret.rotate( degrees( self.azimuth ), dvec.skyVec )
         ret.translate( -centerPivotPos )
         return ret
 
@@ -38,16 +39,3 @@ class TurntableOrthographicCamera( QObject ):
         return TurntableOrthographicCamera.FrameBoundary( halfFrameHeight, -halfFrameHeight,
                                                           -radius, radius,
                                                           -halfFrameHeight, halfFrameHeight )
-    @property
-    def azimuth( self ): return self._azimuth
-
-    @property
-    def altitude( self ): return self._altitude
-
-    StateChanged = pyqtSignal()
-
-    @azimuth.setter
-    def azimuth( self, var: float ): self._azimuth = var; self.StateChanged.emit()
-
-    @altitude.setter
-    def altitude( self, var: float ): self._altitude = var; self.StateChanged.emit()

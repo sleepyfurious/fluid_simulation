@@ -1,24 +1,11 @@
-from math import sqrt
 from collections import namedtuple
-from glm import *
+from PyQt5.QtGui import QVector2D, QVector3D
 
-def _Length( v: vec3 ):
-    sqrtLength = 0
-    for element in list( v ):
-        sqrtLength += element *element
-    return sqrt( sqrtLength )
-
-def _GetPointOnSphere( centerPos: vec3, radius: float, surfaceNormal: vec3 ):
+def _GetPointOnSphere( centerPos: QVector3D, radius: float, surfaceNormal: QVector3D )-> QVector3D:
     """surfaceNormal: assumed normalized"""
-    return centerPos + radius *surfaceNormal
-
-def _Dot( a: vec3, b: vec3 ):
-    return a.x *b.x + a.y *b.y + a.z *b.z
+    return centerPos +radius *surfaceNormal
 
 _floatEpsilon = 7./3 - 4./3 -1 # see: http://stackoverflow.com/questions/19141432/python-numpy-machine-epsilon
-
-def _Cross( a: vec3, b: vec3 ):
-    return vec3( a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x )
 
 _Sphere = namedtuple( 'Sphere', [ 'centerPos', 'radius' ] )
 _Plain = namedtuple( 'Plain', [ 'samplePos', 'normal' ] )
@@ -27,58 +14,62 @@ class ManipulatorTrackball:
     """As Noted"""
 
     def __init__( self,
-        sphereCenterPos: vec3, startCursorPos: vec3, camLookVec: vec3, camUpVec: vec3
+        sphereCenterPos: QVector3D, startCursorPos: QVector3D, camLookVec: QVector3D, camUpVec: QVector3D
     ):
-        """vecs assumed normalized"""
+        """input vecs assumed normalized"""
+        self._interactionVectorOnInteractionPlain = None #type: QVector2D
 
-        self._interactionTrackballRadius = _Length( startCursorPos - sphereCenterPos )
-
+        self._interactionTrackballRadius = ( startCursorPos -sphereCenterPos ).length()
         self._interactionSphere = _Sphere( sphereCenterPos, self._interactionTrackballRadius )
-
         interactionPlain = self.GetTangentingPlainOfSphere( self._interactionSphere.centerPos,
                                                             self._interactionTrackballRadius, -camLookVec  )
 
-        self._startPosInInteractionPlain =  self.GetInteractionPosInInteractionPlain(
+        self._startPosOnInteractionPlain =  self.GetInteractionPosInInteractionPlain(
                                                 startCursorPos, camLookVec, interactionPlain, camLookVec, camUpVec )
 
-    def GetManipulationVec( self, cursorOrigin: vec3, camLookVec: vec3, camUpVec: vec3 )-> vec2:
-        """:return: interaction's diffVector"""
+    def Manipulate( self, cursorOrigin: QVector3D, camLookVec: QVector3D, camUpVec: QVector3D ):
         interactionPlain = self.GetTangentingPlainOfSphere( self._interactionSphere.centerPos,
                                                             self._interactionTrackballRadius, -camLookVec  )
-        endPosInInteractionPlain =  self.GetInteractionPosInInteractionPlain(
+        endPosOnInteractionPlain =  self.GetInteractionPosInInteractionPlain(
                                         cursorOrigin, camLookVec, interactionPlain, camLookVec, camUpVec )
 
-        return endPosInInteractionPlain -self._startPosInInteractionPlain
+        self._interactionVectorOnInteractionPlain = endPosOnInteractionPlain -self._startPosOnInteractionPlain
 
-    def GetInteractionRadius( self )-> float:
-        return self._interactionTrackballRadius
+    def IsManipulated(self)-> bool:
+        return not self._interactionVectorOnInteractionPlain is None
+
+    def GetManipulatedAngle( self )-> QVector2D:
+        if self._interactionVectorOnInteractionPlain is None: raise AssertionError # false usage or internal class error
+        return self._interactionVectorOnInteractionPlain /self._interactionTrackballRadius
 
     @staticmethod
-    def GetTangentingPlainOfSphere( sphCenterPos: vec3, sphRadius: float, sphereNormal: vec3 )-> _Plain:
+    def GetTangentingPlainOfSphere( sphCenterPos: QVector3D, sphRadius: float, tangentingNormal: QVector3D )-> _Plain:
         """Get a tangenting plain of a sphere with the tangent being the plain's sampled point."""
-        return _Plain( _GetPointOnSphere( sphCenterPos, sphRadius, sphereNormal ),
-                                          sphereNormal )
+        return _Plain( _GetPointOnSphere( sphCenterPos, sphRadius, tangentingNormal ),
+                                          tangentingNormal )
     @staticmethod
-    def GetInteractionPosInInteractionPlain(
-        cursorRaySampledPosition: vec3, cursorVec: vec3, interactionPlain: _Plain, camLookVec: vec3, camUpVec: vec3
-    ):
+    def GetInteractionPosInInteractionPlain( cursorRaySampledPosition: QVector3D, cursorVec: QVector3D,
+                                             interactionPlain: _Plain, camLookVec: QVector3D, camUpVec: QVector3D ):
         """vecs assumed normalized"""
 
         # trace our cursor Pos back to the interaction plain
         sampledPointOfInteractionRay = cursorRaySampledPosition -cursorVec
-        if _Dot( sampledPointOfInteractionRay -cursorRaySampledPosition, interactionPlain.normal ) <= _floatEpsilon :
+        if QVector3D.dotProduct( sampledPointOfInteractionRay -cursorRaySampledPosition, interactionPlain.normal ) \
+           <= _floatEpsilon :
             raise ValueError # undefinded interaction
 
         # from cyrusbeck.pdf (Cyrus Beck Line Clipping) in workspace 20131221.CUCG.projectRat
-        _untitled = _Dot( cursorRaySampledPosition -interactionPlain.samplePos, interactionPlain.normal )
-        _t = _untitled /(
-                _untitled -_Dot( sampledPointOfInteractionRay -interactionPlain.samplePos, interactionPlain.normal )
-        )
+        _untitled = QVector3D.dotProduct( cursorRaySampledPosition -interactionPlain.samplePos,
+                                          interactionPlain.normal )
+        _t = _untitled /( _untitled -
+                          QVector3D.dotProduct( sampledPointOfInteractionRay -interactionPlain.samplePos,
+                                                interactionPlain.normal ) )
+
         interactionplainCursorRayIntersectionPoint = cursorRaySampledPosition -cursorVec *_t
         interactionplainCursorRayIntersectionVec = interactionplainCursorRayIntersectionPoint \
                                                  - interactionPlain.samplePos
-        camRightVec = _Cross( camLookVec, camUpVec )
+        camRightVec = QVector3D.crossProduct( camLookVec, camUpVec )
 
-        return vec2( _Dot( camRightVec, interactionplainCursorRayIntersectionVec ),
-                     _Dot( camUpVec, interactionplainCursorRayIntersectionVec ) )
+        return QVector2D( QVector3D.dotProduct( camRightVec, interactionplainCursorRayIntersectionVec ),
+                          QVector3D.dotProduct( camUpVec, interactionplainCursorRayIntersectionVec ) )
 

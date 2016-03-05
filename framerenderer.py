@@ -26,26 +26,18 @@ class FrameRenderer:
         with uglw.ProgBound( self._velocityLineProgramInfo.__progHandle__ ):
             glUniform3iv( self._velocityLineProgramInfo.gridN, 1, fieldSize )
 
-        self._tex_velocity = glGenTextures( 1 )
-        with uglw.TextureBound( GL_TEXTURE_2D, self._tex_velocity ):
-            glTexImage2D( GL_TEXTURE_2D, 0, GL_RG32F, fieldSize[0], fieldSize[1], 0, GL_RG,
-                          GL_FLOAT, 0 ) # don't care input data
-            uglw.TextureMinMaxNEAREST( GL_TEXTURE_2D )
-
     def __del__(self):
         glDeleteVertexArrays( [ self._vao_blank ] )
         glDeleteProgram( self._velocityLineProgramInfo.__progHandle__ )
         glDeleteProgram( self._sceneBoxWireProgramInfo.__progHandle__ )
+        glDeleteProgram( self._sceneBoxSurfProgramInfo.__progHandle__ )
         del self._depthInteractionBuffer
 
     def RenderToDrawBuffer_VelocityLine ( self, vpMat: QMatrix4x4,
-        velocity2DField2D: Vec2DField2D, fieldSpacing: float
+        texName_velocityField3D: GLuint, fieldSpacing: float
     ):
         with uglw.VAOBound( self._vao_blank ):
-            with uglw.TextureBound( GL_TEXTURE_2D, self._tex_velocity ):
-                glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, self._fieldSize[0], self._fieldSize[1], GL_RG, GL_FLOAT,
-                                 velocity2DField2D.GetRawData() )
-
+            with uglw.TextureBound( GL_TEXTURE_3D, texName_velocityField3D ):
                 with uglw.ProgBound( self._velocityLineProgramInfo.__progHandle__ ):
                     cellNx2 = self._fieldSize[0] *self._fieldSize[1] *self._fieldSize[2] *2
 

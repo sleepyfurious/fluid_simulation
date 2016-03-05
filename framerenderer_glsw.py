@@ -37,7 +37,7 @@ uniform mat4 vpMat = mat4( 1 ); // camera
 #if/**/ defined(GRID)
     uniform float gridSpacing = 0.1;
     uniform ivec3 gridN = ivec3( 10 );
-    uniform sampler2D velocityField;
+    uniform sampler3D velocityField;
 
  #elif  defined(SCENEBOX)
     uniform vec3 boxSize = vec3( 1 );
@@ -59,7 +59,7 @@ void main ( void ) {
         vec3    gridCenteredCellPos = gridScaledCellPos -gridCenterPos;
 
         if ( isTail ) {
-            gridCenteredCellPos += vec3( texelFetch( velocityField, cellCoord.xy, 0 ).xy, 0 );
+            gridCenteredCellPos += vec3( texelFetch( velocityField, cellCoord, 0 ) );
         }
 
         wPos = gridCenteredCellPos;

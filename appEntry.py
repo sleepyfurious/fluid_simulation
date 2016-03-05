@@ -10,6 +10,7 @@ import  qquickitem_glfbo    as      quickfbo
 import  util_glwrapper      as      uglw
 from    framerenderer       import  FrameRenderer
 from    navierstroke        import  Harris2004NavierStrokeSimulation
+from    navierstroke_gpu    import  Harris2004NavierStrokeSimulation as H_GPU
 from    direct_turntable_scenebox_ortho_cam import DirectManeuverTurntableSceneBoxOrthoCam
 
 class FluidSimulationApp( quickfbo.GlFboViewportI ):
@@ -33,9 +34,11 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.frameRenderer      = None
         self.loopTimer          = None
         self.frameCounter       = 0
-        self.navierstrokeSim    = Harris2004NavierStrokeSimulation( ivec2(10), 1.0 )
-        self.sceneBoxSize       = QVector3D( 10, 10, 1 )
+        self.hgpu               = None
+        self.sceneBoxSize       = QVector3D( 16, 16, 16 )
         self.sceneBoxCam        = DirectManeuverTurntableSceneBoxOrthoCam( self.sceneBoxSize )
+        from math import radians
+        # self.sceneBoxCam._cam.altitude=radians(90)
 
         self.qQuickWorkaround   = QMatrix4x4()
         self.qQuickWorkaround.scale( QVector3D( 1,-1, 1 ) )
@@ -49,15 +52,15 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         # print( "frameCounter:", self.frameCounter )
         self.frameCounter += 1
 
-        if not self.frameRenderer:
-            self.frameRenderer = FrameRenderer( tuple( self.navierstrokeSim.gridSize ) +( 1,) )
-
-        if not self.loopTimer:
-            self.loopTimer = LoopTimer()
+        if not self.hgpu: self.hgpu = H_GPU( (16,16,16), 1.0 )
+        if not self.frameRenderer: self.frameRenderer = FrameRenderer( self.hgpu.gridSize )
+        if not self.loopTimer: self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
 
+        glDisable( GL_BLEND )  # cleanup unexpected QQuick's GL state
+
         # realtime timestep simulation
-        self.navierstrokeSim.Step( deltaT )
+        self.hgpu.Step( deltaT )
 
         vpMat = self.qQuickWorkaround *self.sceneBoxCam.GetActiveVpMat()
 
@@ -67,14 +70,15 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
                 glBlendFunc( GL_ONE, GL_ONE )
 
                 self.frameRenderer.RenderToDrawBuffer_VelocityLine( vpMat,
-                                                                    self.navierstrokeSim.GetACopyOfVelocity2DField2D(),
-                                                                    self.navierstrokeSim.gridSpacing )
+                                                                    self.hgpu.GetTexnameOfCurrentVelocityField(),
+                                                                    self.hgpu.gridSpacing )
                 self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( vpMat, self.sceneBoxSize )
 
     def Cleanup ( self ):
         if self.frameRenderer:
-            del self.framerenderer
-            self.frameRenderer = None
+            del self.framerenderer; self.frameRenderer = None
+            del self.hgpu; self.hgpu = None
+
 
     def MousePressdMovedReleasedEvent ( self, e: quickfbo.MouseEvent, viewSize: QPoint ):
         activeVPMat = self.sceneBoxCam.GetActiveVpMat()

@@ -3,13 +3,12 @@ from    PyQt5.QtCore    import QUrl, QPoint
 from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat, QVector3D, QMatrix4x4
 from    PyQt5.QtQuick   import QQuickView
 from    OpenGL.GL       import *
-from    glm             import ivec2
 
 from    looptimer           import  LoopTimer
 import  qquickitem_glfbo    as      quickfbo
 import  util_glwrapper      as      uglw
+import  util_datatype       as      utyp
 from    framerenderer       import  FrameRenderer
-from    navierstroke        import  Harris2004NavierStrokeSimulation
 from    navierstroke_gpu    import  Harris2004NavierStrokeSimulation as H_GPU
 from    direct_turntable_scenebox_ortho_cam import DirectManeuverTurntableSceneBoxOrthoCam
 
@@ -48,30 +47,34 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.appView.show()
         self.app.exec()
 
-    def Draw ( self, fboName: int, fboSize: QPoint ):
+    def Draw ( self, fboName: int, viewSize: QPoint ):
         # print( "frameCounter:", self.frameCounter )
         self.frameCounter += 1
 
-        if not self.hgpu: self.hgpu = H_GPU( (16,16,16), 1.0 )
-        if not self.frameRenderer: self.frameRenderer = FrameRenderer( self.hgpu.gridSize )
+        gridSize    = tuple( int(x) for x in utyp.GetTuple( self.sceneBoxSize ) )
+        gridSpacing = 1.0
+        if not self.hgpu: self.hgpu = H_GPU( gridSize, gridSpacing )
+        if not self.frameRenderer: self.frameRenderer = FrameRenderer( gridSize )
         if not self.loopTimer: self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
 
         glDisable( GL_BLEND )  # cleanup unexpected QQuick's GL state
 
         # realtime timestep simulation
-        self.hgpu.Step( deltaT )
+        self.hgpu.Step( 0.04 )
+        # self.hgpu.Step( deltaT )
 
         vpMat = self.qQuickWorkaround *self.sceneBoxCam.GetActiveVpMat()
 
         with uglw.FBOBound( fboName ):
             glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
+            glViewport( 0, 0, viewSize.x(), viewSize.y() )
             with uglw.EnableScope( GL_BLEND ):
                 glBlendFunc( GL_ONE, GL_ONE )
 
                 self.frameRenderer.RenderToDrawBuffer_VelocityLine( vpMat,
                                                                     self.hgpu.GetTexnameOfCurrentVelocityField(),
-                                                                    self.hgpu.gridSpacing )
+                                                                    gridSpacing )
                 self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( vpMat, self.sceneBoxSize )
 
     def Cleanup ( self ):

@@ -27,7 +27,7 @@ class Harris2004NavierStrokeSimulation:
 
         self._gridSize          = gridSize
         self._rGridspacing      = 1 / gridSpacing
-        self._pressureJacobiIteration = 2 # [40,80]
+        self._pressureJacobiIteration = 40 # [40,80]
 
         rGridsize = ONE_3D /QVector3D( *gridSize )
 
@@ -36,7 +36,7 @@ class Harris2004NavierStrokeSimulation:
 
         with uglw.ProgBound( self._iprog_force.__progHandle__ ):
             glUniform1fv( self._iprog_force.rUnitcellspaceHalfBrushsize, 1, 1 /( 0.5 *1 )  )
-            glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1, ( 3, 3, 3 ) )
+            glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1, ( 1,1,1 ) )
 
         halfRgridspacing = 0.5 *self._rGridspacing
         with uglw.ProgBound( self._iprog_divergence.__progHandle__ ):
@@ -49,7 +49,7 @@ class Harris2004NavierStrokeSimulation:
         with uglw.ProgBound( self._iprog_jacobi.__progHandle__ ):
             glUniform1iv( self._iprog_jacobi.fieldX, 1, 0 )
             glUniform1iv( self._iprog_jacobi.fieldB, 1, 1 )
-            glUniform2fv( self._iprog_jacobi.alphaRbeta, 1, ( -gridSpacing *gridSpacing, 1 /4 ) )
+            glUniform2fv( self._iprog_jacobi.alphaRbeta, 1, ( -4, 1 /(gridSpacing *gridSpacing) ) )
 
         with uglw.FBOBound( self._fboName ): self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         with uglw.FBOBound( self._fboName ): self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 1 ) )
@@ -64,6 +64,7 @@ class Harris2004NavierStrokeSimulation:
         glDeleteProgram( self._iprog_force.__progHandle__ )
 
     def Step( self, deltaT: float ):
+        # import time; time.sleep(0.5)
         print ( 'step:', self._devTmp_stepCnt )
 
         glBindVertexArray( self._vao_blank )
@@ -143,21 +144,22 @@ class Harris2004NavierStrokeSimulation:
 
     def _Step_ExecBoundary_UseProg( self, scale: float, targetTexname ):
         glViewport( 0, 0, self._gridSize[0], self._gridSize[1] )
-        with uglw.ProgBound( self._iprog_boundaryLn.__progHandle__ ):
-            glUniform1fv( self._iprog_boundaryLn.scale, 1, scale )
-            for operating_z in range( 1, self._gridSize[2] -1 ):
-                _BindFBOwithTex3DatLayer( targetTexname, operating_z )
-                glUniform1i( self._iprog_boundaryLn.operating_z, operating_z )
-                glDrawArrays( GL_TRIANGLES, 0, 24 )
+        with uglw.TextureBound( GL_TEXTURE_3D, targetTexname ):
+            with uglw.ProgBound( self._iprog_boundaryLn.__progHandle__ ):
+                glUniform1fv( self._iprog_boundaryLn.scale, 1, scale )
+                for operating_z in range( 1, self._gridSize[2] -1 ):
+                    _BindFBOwithTex3DatLayer( targetTexname, operating_z )
+                    glUniform1i( self._iprog_boundaryLn.operating_z, operating_z )
+                    glDrawArrays( GL_TRIANGLES, 0, 24 )
 
-        with uglw.ProgBound( self._iprog_boundaryQd.__progHandle__ ):
-            glUniform1fv( self._iprog_boundaryQd.scale, 1, scale )
-            _BindFBOwithTex3DatLayer( targetTexname, 0 )
-            glUniform1i( self._iprog_boundaryQd.operating_z, 0 )
-            glUniform3iv( self._iprog_boundaryQd.offset, 1, ( 0, 0, 1 ) ); glDrawArrays( GL_TRIANGLES, 0, 6 )
-            _BindFBOwithTex3DatLayer( targetTexname, self._gridSize[2] -1 )
-            glUniform1i( self._iprog_boundaryQd.operating_z, self._gridSize[2] -1 )
-            glUniform3iv( self._iprog_boundaryQd.offset, 1, ( 0, 0,-1 ) ); glDrawArrays( GL_TRIANGLES, 0, 6 )
+            with uglw.ProgBound( self._iprog_boundaryQd.__progHandle__ ):
+                glUniform1fv( self._iprog_boundaryQd.scale, 1, scale )
+                _BindFBOwithTex3DatLayer( targetTexname, 0 )
+                glUniform1i( self._iprog_boundaryQd.operating_z, 0 )
+                glUniform3iv( self._iprog_boundaryQd.offset, 1, ( 0, 0, 1 ) ); glDrawArrays( GL_TRIANGLES, 0, 6 )
+                _BindFBOwithTex3DatLayer( targetTexname, self._gridSize[2] -1 )
+                glUniform1i( self._iprog_boundaryQd.operating_z, self._gridSize[2] -1 )
+                glUniform3iv( self._iprog_boundaryQd.offset, 1, ( 0, 0,-1 ) ); glDrawArrays( GL_TRIANGLES, 0, 6 )
 
     def GetTexnameOfCurrentVelocityField( self )-> GLuint:
         return self._tex.GetOffsetSlabingUnaux3_1Texname( 0 )

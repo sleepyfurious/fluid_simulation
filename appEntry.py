@@ -34,7 +34,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.loopTimer          = None
         self.frameCounter       = 0
         self.hgpu               = None
-        self.sceneBoxSize       = QVector3D( 16, 16, 16 )
+        self.sceneBoxSize       = QVector3D( 16, 16, 4 )
         self.sceneBoxCam        = DirectManeuverTurntableSceneBoxOrthoCam( self.sceneBoxSize )
         from math import radians
         # self.sceneBoxCam._cam.altitude=radians(90)

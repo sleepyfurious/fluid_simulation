@@ -8,47 +8,6 @@ from    util_glshaderwrangler   import BuildPipelineProgram
 
 import  navierstroke_glsw       as glsw
 
-class _SlabingTexture:
-    def __init__( self, gridSize: T.Tuple[int,int,int] ):
-        maxGridSize = glGetIntegerv( GL_MAX_3D_TEXTURE_SIZE )
-        if  any( map( lambda x: x > maxGridSize, gridSize ) ) or any( map( lambda x: x < 1, gridSize ) ):
-            raise AssertionError # input size not applicable
-
-        # GenAllocateTexturesRGBA32F3D with Edgeclamping
-        self._tex_uNaux3p1_0, self._tex_uNaux3p1_1, self._tex_uNaux3eqTenR1 = texNames = glGenTextures( 3 )
-
-        for texName in texNames:
-            with uglw.TextureBound( GL_TEXTURE_3D, texName ):
-                glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA32F, gridSize[0], gridSize[1], gridSize[2], 0, GL_RGBA,
-                              GL_FLOAT, 0 ) # don't care uploading anything
-                uglw.SetTextureMinMaxFilter( GL_TEXTURE_3D, GL_LINEAR )
-                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE )
-                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE )
-                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE )
-
-        self._uNaux_texSlabingID = 0
-        self._uNaux_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1, 2: self._tex_uNaux3eqTenR1 }
-
-        self.__3p1_texSlabingID = 0
-        self.__3p1_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1 }
-
-    def GetNextSlabingUnaux3_1Texname( self )-> GLuint:
-        self._uNaux_texSlabingID = ( self._uNaux_texSlabingID +1 ) %len( self._uNaux_texSlabingDict )
-        return self._uNaux_texSlabingDict[ self._uNaux_texSlabingID ]
-
-    def GetOffsetSlabingUnaux3_1Texname( self, offset: int )-> GLuint:
-        return self._uNaux_texSlabingDict[ (self._uNaux_texSlabingID +offset) %len( self._uNaux_texSlabingDict ) ]
-
-    def GetNextSlabing_3p1Texname( self )-> GLuint:
-        self.__3p1_texSlabingID = ( self.__3p1_texSlabingID +1 ) %len( self.__3p1_texSlabingDict )
-        return self.__3p1_texSlabingDict[ self.__3p1_texSlabingID ]
-
-    def GetCurrentSlabing_3p1Texname( self )-> GLuint:
-        return self.__3p1_texSlabingDict[ self.__3p1_texSlabingID ]
-
-    def Get_3EqTenR1Texname( self )-> GLuint: return self._tex_uNaux3eqTenR1
-
-
 class Harris2004NavierStrokeSimulation:
 
     def __init__( self, gridSize: T.Tuple[int,int,int], gridSpacing ):
@@ -63,10 +22,12 @@ class Harris2004NavierStrokeSimulation:
         self._iprog_divergence  = BuildPipelineProgram( glsw.v, glsw.f, ( "DIVERGENCE",) )
         self._iprog_jacobi      = BuildPipelineProgram( glsw.v, glsw.f, ( "JACOBI",) )
         self._iprog_gradsub     = BuildPipelineProgram( glsw.v, glsw.f, ( "GRADIENTSUB",) )
+        self._iprog_boundaryLn  = BuildPipelineProgram( glsw.v, glsw.f, ( "BOUNDARY", "BOUNDARY_BORDER" ) )
+        self._iprog_boundaryQd  = BuildPipelineProgram( glsw.v, glsw.f, ( "BOUNDARY",) )
 
         self._gridSize          = gridSize
         self._rGridspacing      = 1 / gridSpacing
-        self._pressureJacobiIteration = 40 # [40,80]
+        self._pressureJacobiIteration = 2 # [40,80]
 
         rGridsize = ONE_3D /QVector3D( *gridSize )
 
@@ -109,8 +70,6 @@ class Harris2004NavierStrokeSimulation:
         glBindFramebuffer( GL_FRAMEBUFFER, self._fboName )
         # self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) ) # Temp, reset last step
 
-        glViewport( 1, 1, self._gridSize[0] -2, self._gridSize[1] -2 )
-
         glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE )
 
         # ADVECTION
@@ -119,6 +78,7 @@ class Harris2004NavierStrokeSimulation:
         glBindTexture( GL_TEXTURE_3D, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         glUniform1fv( self._iprog_advection.dtXrGridspacing, 1, self._rGridspacing )
         self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_advection, self._tex.GetNextSlabingUnaux3_1Texname( ) )
+        self._Step_ExecBoundary_UseProg( -1, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "ADVECTED" )
 
         # ADD FORCE
@@ -139,11 +99,12 @@ class Harris2004NavierStrokeSimulation:
         _Step_Inspect444OriginCubeFromGrid( self._tex.Get_3EqTenR1Texname( ), "DIVERGENCED" )
 
         # PROJECTION JACOBI
-        glUseProgram( self._iprog_jacobi.__progHandle__ )
         for i in range( self._pressureJacobiIteration ):
             glActiveTexture( GL_TEXTURE1 ); glBindTexture( GL_TEXTURE_3D, self._tex.Get_3EqTenR1Texname() )
             glActiveTexture( GL_TEXTURE0 ); glBindTexture( GL_TEXTURE_3D, self._tex.GetCurrentSlabing_3p1Texname() )
+            glUseProgram( self._iprog_jacobi.__progHandle__ )
             self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_jacobi, self._tex.GetNextSlabing_3p1Texname( ) )
+            self._Step_ExecBoundary_UseProg( 1, self._tex.GetCurrentSlabing_3p1Texname() )
             _Step_Inspect444OriginCubeFromGrid( self._tex.GetCurrentSlabing_3p1Texname( ), "JACOBIED" )
 
         glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE )
@@ -153,6 +114,7 @@ class Harris2004NavierStrokeSimulation:
         glActiveTexture( GL_TEXTURE1 ); glBindTexture( GL_TEXTURE_3D, self._tex.GetCurrentSlabing_3p1Texname() )
         glActiveTexture( GL_TEXTURE0 ); glBindTexture( GL_TEXTURE_3D, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_gradsub, self._tex.GetNextSlabingUnaux3_1Texname( ) )
+        self._Step_ExecBoundary_UseProg( -1, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "GRADSUBTRACTED" )
 
         # import pdb; pdb.set_trace()
@@ -173,13 +135,73 @@ class Harris2004NavierStrokeSimulation:
             glClearBufferfv( GL_COLOR, 0, (0,0,0,0) )
 
     def _Step_ExecInnerGrid_PreProgVaoBind( self, prog, targetTexname ):
+        glViewport( 1, 1, self._gridSize[0] -2, self._gridSize[1] -2 )
         for operating_z in range( 1, self._gridSize[2] -1 ):
             glUniform1i( prog.operating_z, operating_z )
             _BindFBOwithTex3DatLayer( targetTexname, operating_z )
             glDrawArrays( GL_TRIANGLES, 0, 6 )
 
+    def _Step_ExecBoundary_UseProg( self, scale: float, targetTexname ):
+        glViewport( 0, 0, self._gridSize[0], self._gridSize[1] )
+        with uglw.ProgBound( self._iprog_boundaryLn.__progHandle__ ):
+            glUniform1fv( self._iprog_boundaryLn.scale, 1, scale )
+            for operating_z in range( 1, self._gridSize[2] -1 ):
+                _BindFBOwithTex3DatLayer( targetTexname, operating_z )
+                glUniform1i( self._iprog_boundaryLn.operating_z, operating_z )
+                glDrawArrays( GL_TRIANGLES, 0, 24 )
+
+        with uglw.ProgBound( self._iprog_boundaryQd.__progHandle__ ):
+            glUniform1fv( self._iprog_boundaryQd.scale, 1, scale )
+            _BindFBOwithTex3DatLayer( targetTexname, 0 )
+            glUniform1i( self._iprog_boundaryQd.operating_z, 0 )
+            glUniform3iv( self._iprog_boundaryQd.offset, 1, ( 0, 0, 1 ) ); glDrawArrays( GL_TRIANGLES, 0, 6 )
+            _BindFBOwithTex3DatLayer( targetTexname, self._gridSize[2] -1 )
+            glUniform1i( self._iprog_boundaryQd.operating_z, self._gridSize[2] -1 )
+            glUniform3iv( self._iprog_boundaryQd.offset, 1, ( 0, 0,-1 ) ); glDrawArrays( GL_TRIANGLES, 0, 6 )
+
     def GetTexnameOfCurrentVelocityField( self )-> GLuint:
         return self._tex.GetOffsetSlabingUnaux3_1Texname( 0 )
+
+
+class _SlabingTexture:
+    def __init__( self, gridSize: T.Tuple[int,int,int] ):
+        maxGridSize = glGetIntegerv( GL_MAX_3D_TEXTURE_SIZE )
+        if  any( map( lambda x: x > maxGridSize, gridSize ) ) or any( map( lambda x: x < 1, gridSize ) ):
+            raise AssertionError # input size not applicable
+
+        # GenAllocateTexturesRGBA32F3D with Edgeclamping
+        self._tex_uNaux3p1_0, self._tex_uNaux3p1_1, self._tex_uNaux3eqTenR1 = texNames = glGenTextures( 3 )
+
+        for texName in texNames:
+            with uglw.TextureBound( GL_TEXTURE_3D, texName ):
+                glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA32F, gridSize[0], gridSize[1], gridSize[2], 0, GL_RGBA,
+                              GL_FLOAT, 0 ) # don't care uploading anything
+                uglw.SetTextureMinMaxFilter( GL_TEXTURE_3D, GL_LINEAR )
+                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE )
+                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE )
+                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE )
+
+        self._uNaux_texSlabingID = 0
+        self._uNaux_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1, 2: self._tex_uNaux3eqTenR1 }
+
+        self.__3p1_texSlabingID = 0
+        self.__3p1_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1 }
+
+    def GetNextSlabingUnaux3_1Texname( self )-> GLuint:
+        self._uNaux_texSlabingID = ( self._uNaux_texSlabingID +1 ) %len( self._uNaux_texSlabingDict )
+        return self._uNaux_texSlabingDict[ self._uNaux_texSlabingID ]
+
+    def GetOffsetSlabingUnaux3_1Texname( self, offset: int )-> GLuint:
+        return self._uNaux_texSlabingDict[ (self._uNaux_texSlabingID +offset) %len( self._uNaux_texSlabingDict ) ]
+
+    def GetNextSlabing_3p1Texname( self )-> GLuint:
+        self.__3p1_texSlabingID = ( self.__3p1_texSlabingID +1 ) %len( self.__3p1_texSlabingDict )
+        return self.__3p1_texSlabingDict[ self.__3p1_texSlabingID ]
+
+    def GetCurrentSlabing_3p1Texname( self )-> GLuint:
+        return self.__3p1_texSlabingDict[ self.__3p1_texSlabingID ]
+
+    def Get_3EqTenR1Texname( self )-> GLuint: return self._tex_uNaux3eqTenR1
 
 
 def _BindFBOwithTex3DatLayer( texName, layer ):
@@ -188,7 +210,7 @@ def _BindFBOwithTex3DatLayer( texName, layer ):
 def _Step_Inspect444OriginCubeFromGrid( targetTexname, headerName ):
     return
     glReadBuffer( GL_COLOR_ATTACHMENT0 )
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+    glPixelStorei( GL_UNPACK_ALIGNMENT, 1 )
 
     ourImg3D = []
     for operating_z in range( 4 ):

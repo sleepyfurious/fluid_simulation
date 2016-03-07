@@ -17,18 +17,7 @@ const int BOX_SURFTRIANGLEIDX[ 3 *2 *6 ] = int[ 3 *2 *6 ](  4,6,2, 2,6,0,   6,7,
 
 // UTIL ----------------------------------------------------------------------------------------------------------------
 
-/* confuse how, but taken from here:
- * http://stackoverflow.com/questions/14845084/how-do-i-convert-a-1d-index-into-a-3d-index
- * look like author tell it wrong ( round -> floor ) */
-ivec3 GetIndex3Dfrom1D( int i, ivec2 wh ) {
-    int     wXh     = wh.x *wh.y;
-    float   rWxH    = 1.0 /wXh;
-    float   rW      = 1.0 /wh.x;
-    int z = int( i *rWxH );
-    int y = int( ( i -z*wXh ) *rW );
-    int x = i -wh.x *( y +wh.y*z );
-    return ivec3( x, y, z );
-}
+ivec3 GetIndex3Dfrom1D( int i, ivec2 wh ) { return  ivec3( i %wh.x, int( i /wh.x ) %wh.y, i /( wh.x *wh.y ) ); }
 
 // ---------------------------------------------------------------------------------------------------------------------
 

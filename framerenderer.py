@@ -64,6 +64,7 @@ class FrameRenderer:
         # render depthImage and get depthValue -------------------------------------------------------------------------
         self._depthInteractionBuffer.RequestBindFBO( winspaceDimension )
 
+        glViewport( 0, 0, winspaceDimension.x(), winspaceDimension.y() )
         with uglw.VAOBound( self._vao_blank ):
             with uglw.ProgBound( self._sceneBoxSurfProgramInfo.__progHandle__ ):
                 with uglw.EnableScope( GL_DEPTH_TEST ):

@@ -2,8 +2,8 @@ import QtQuick 2.3
 import GlFboViewport 1.0
 
 Item {
-    width:  400
-    height: 400
+    width:  512
+    height: 512
 
     Timer {
         interval: 1; running: true; repeat: true

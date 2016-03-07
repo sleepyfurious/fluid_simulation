@@ -108,17 +108,13 @@ const vec2 QUAD_VERTICES[4] = vec2[4]( vec2( 1, 1 ), vec2(-1, 1 ), vec2(-1,-1 ),
 const int  QUAD_TRIANGLESIDX[ 3 *2 ] = int[ 3 *2 ]( 0, 1, 3,  3, 1, 2 );
 
 #if/**/ defined( BOUNDARY_BORDER )
-    #define CANVAS_SIZE ivec2( 16, 16 )
-    const vec2 ndcspacePixelSize = vec2( 2.0 /16.0 );
-    const vec2 BORDER_VERTS[ 12 ] = vec2[ 12 ](  vec2(-1-1 ), vec2(-1,1 ),
-                                                 vec2( 1,1 ), vec2( 1,-1),
-        vec2(-1 +ndcspacePixelSize.x,-1 )   , vec2(-1 +ndcspacePixelSize.x, 1 ),
-        vec2( 1 -ndcspacePixelSize.x,-1 )   , vec2( 1 -ndcspacePixelSize.x, 1 ),
-        vec2(-1 +ndcspacePixelSize.x,-1 +ndcspacePixelSize.y ), // 8
-        vec2( 1 -ndcspacePixelSize.x,-1 +ndcspacePixelSize.y ), // 9
-        vec2(-1 +ndcspacePixelSize.x, 1 -ndcspacePixelSize.y ), // 10
-        vec2( 1 -ndcspacePixelSize.x, 1 -ndcspacePixelSize.y )  // 11
-    );
+#define CANVAS_SIZE ivec2( 16, 16 )
+    const vec2 _PAD = vec2( -1 +NDCSPACE_PIXELSIZE.x, -1 +NDCSPACE_PIXELSIZE.y );
+    const vec2 BORDER_VERTS[ 12 ] = vec2[ 12 ](  vec2(-1-1 ), vec2(-1,1 ), vec2( 1,1 ), vec2( 1,-1),    //  0123
+                                                 vec2( _PAD.x,-1 ),          vec2( _PAD.x, 1 ),         //  4  5
+                                                 vec2(-_PAD.x,-1 ),          vec2(-_PAD.x, 1 ),         //  6  7
+                                                 vec2( _PAD.x, _PAD.y ),     vec2(-_PAD.x, _PAD.y ),    //  8  9
+                                                 vec2( _PAD.x,-_PAD.y ),     vec2(-_PAD.x,-_PAD.y )  ); // 10 11
 
     const int TRIANGLESIDX[ 8 *3 ] = int[ 8 *3 ](   0, 4, 5,  0, 5, 1,      2, 7, 6,  2, 6, 3,
                                                     4, 6, 9,  4, 9, 8,      7, 5,10,  7,10,11    );

@@ -34,7 +34,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.loopTimer          = None
         self.frameCounter       = 0
         self.hgpu               = None
-        self.sceneBoxSize       = QVector3D( 16, 16, 4 )
+        self.sceneBoxSize       = QVector3D( 1, 1, 0.1 )
         self.sceneBoxCam        = DirectManeuverTurntableSceneBoxOrthoCam( self.sceneBoxSize )
         from math import radians
         # self.sceneBoxCam._cam.altitude=radians(90)
@@ -51,8 +51,8 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         # print( "frameCounter:", self.frameCounter )
         self.frameCounter += 1
 
-        gridSize    = tuple( int(x) for x in utyp.GetTuple( self.sceneBoxSize ) )
-        gridSpacing = 1.0
+        gridSpacing = 0.02
+        gridSize    = tuple( int(x /gridSpacing) for x in utyp.GetTuple( self.sceneBoxSize ) )
         if not self.hgpu: self.hgpu = H_GPU( gridSize, gridSpacing )
         if not self.frameRenderer: self.frameRenderer = FrameRenderer( gridSize )
         if not self.loopTimer: self.loopTimer = LoopTimer()
@@ -61,8 +61,8 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         glDisable( GL_BLEND )  # cleanup unexpected QQuick's GL state
 
         # realtime timestep simulation
-        self.hgpu.Step( 0.04 )
-        # self.hgpu.Step( deltaT )
+        # self.hgpu.Step( 0.04 )
+        self.hgpu.Step( deltaT )
 
         vpMat = self.qQuickWorkaround *self.sceneBoxCam.GetActiveVpMat()
 

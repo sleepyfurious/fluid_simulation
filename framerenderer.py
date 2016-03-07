@@ -61,7 +61,7 @@ class FrameRenderer:
         :return: 3D world position of cursor interaction
         """
 
-        # render depthImage --------------------------------------------------------------------------------------------
+        # render depthImage and get depthValue -------------------------------------------------------------------------
         self._depthInteractionBuffer.RequestBindFBO( winspaceDimension )
 
         with uglw.VAOBound( self._vao_blank ):
@@ -72,12 +72,13 @@ class FrameRenderer:
                     glUniformMatrix4fv( self._sceneBoxSurfProgramInfo.vpMat, 1, GL_FALSE, vpMat.data() )
                     glDrawArrays( GL_TRIANGLES, 0, 3 *2 *6 )
 
-        depthImage = glReadPixels( 0, 0, winspaceDimension.x(), winspaceDimension.y(), GL_DEPTH_COMPONENT, GL_FLOAT )
+        winspaceCursorDepthValue = glReadPixels( winspaceCursorPos.x(), winspaceCursorPos.y(), 1, 1,
+                                                 GL_DEPTH_COMPONENT, GL_FLOAT )[0][0]
+        # print( winspaceCursorDepthValue )
+
         glBindFramebuffer( GL_FRAMEBUFFER, 0 )
 
-        # unproject cursor into worldCoord
-        winspaceCursorDepthValue = depthImage[ winspaceCursorPos.y() ][ winspaceCursorPos.x() ]
-
+        # unproject cursor into worldCoord -----------------------------------------------------------------------------
         if winspaceCursorDepthValue == 1.0:
             raise ValueError # cursor ray hit background, no object to manipulate
 

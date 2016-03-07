@@ -75,8 +75,8 @@ out     vec4 outVar;
     outVar = vec4( halfRgridspacing *( neighborDiffW.x + neighborDiffW.y + neighborDiffW.z ) );
 
  #elif  defined( JACOBI )
-    vec4 x = GetNeighborSum( fieldX, unitcellspaceCoord ),
-         b = texelFetch( fieldB, unitcellspaceCoord, 0 );
+    vec4 x = GetNeighborSum( fieldX, unitcellspaceCoord ), // proj: p
+         b = texelFetch( fieldB, unitcellspaceCoord, 0 );  // proj: eq10r
 
     outVar = ( x +alphaRbeta.x *b ) *alphaRbeta.y;
 
@@ -84,6 +84,7 @@ out     vec4 outVar;
     vec3 neighborDiffP = GetNeighborAlphaDiff( _3p1, unitcellspaceCoord );
 
     outVar.xyz = texelFetch( u3_1, unitcellspaceCoord, 0 ).xyz -halfRgridspacing *neighborDiffP;
+
  #endif
 
  }

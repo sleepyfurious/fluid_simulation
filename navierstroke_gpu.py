@@ -75,15 +75,19 @@ class Harris2004NavierStrokeSimulation:
 
         with uglw.ProgBound( self._iprog_force.__progHandle__ ):
             glUniform1fv( self._iprog_force.rUnitcellspaceHalfBrushsize, 1, 1 /( 0.5 *1 )  )
-            glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1, ( 5, 5, self._gridSize[2] -1 -5 ) )
+            glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1, ( 3, 3, 3 ) )
 
         halfRgridspacing = 0.5 *self._rGridspacing
         with uglw.ProgBound( self._iprog_divergence.__progHandle__ ):
             glUniform1fv( self._iprog_divergence.halfRgridspacing, 1, halfRgridspacing )
         with uglw.ProgBound( self._iprog_gradsub.__progHandle__ ):
             glUniform1fv( self._iprog_gradsub.halfRgridspacing, 1, halfRgridspacing )
+            glUniform1iv( self._iprog_gradsub.u3_1, 1, 0 )
+            glUniform1iv( self._iprog_gradsub._3p1, 1, 1 )
 
         with uglw.ProgBound( self._iprog_jacobi.__progHandle__ ):
+            glUniform1iv( self._iprog_jacobi.fieldX, 1, 0 )
+            glUniform1iv( self._iprog_jacobi.fieldB, 1, 1 )
             glUniform2fv( self._iprog_jacobi.alphaRbeta, 1, ( -gridSpacing *gridSpacing, 1 /4 ) )
 
         with uglw.FBOBound( self._fboName ): self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
@@ -99,7 +103,7 @@ class Harris2004NavierStrokeSimulation:
         glDeleteProgram( self._iprog_force.__progHandle__ )
 
     def Step( self, deltaT: float ):
-        print ( self._devTmp_stepCnt )
+        print ( 'step:', self._devTmp_stepCnt )
 
         glBindVertexArray( self._vao_blank )
         glBindFramebuffer( GL_FRAMEBUFFER, self._fboName )
@@ -107,19 +111,24 @@ class Harris2004NavierStrokeSimulation:
 
         glViewport( 1, 1, self._gridSize[0] -2, self._gridSize[1] -2 )
 
+        glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE )
+
         # ADVECTION
+        _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "START" )
         glUseProgram( self._iprog_advection.__progHandle__ )
         glBindTexture( GL_TEXTURE_3D, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         glUniform1fv( self._iprog_advection.dtXrGridspacing, 1, self._rGridspacing )
         self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_advection, self._tex.GetNextSlabingUnaux3_1Texname( ) )
+        _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "ADVECTED" )
 
         # ADD FORCE
         with uglw.EnableScope( GL_BLEND ):
             glBlendFunc( GL_ONE, GL_ONE ) #additive blend
             glUseProgram( self._iprog_force.__progHandle__ )
-            force = QVector3D( 20, 20, 0 ) if self._devTmp_stepCnt < 500 and self._devTmp_stepCnt > 1 else QVector3D()
+            force = QVector3D( 20, 20, 0 ) if self._devTmp_stepCnt < 500 and self._devTmp_stepCnt >= 0 else QVector3D()
             glUniform3fv( self._iprog_force.forceXdt, 1, utyp.GetTuple( force *deltaT ) )
             self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_force, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
+        _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "FORCED" )
 
         glColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE )
 
@@ -127,6 +136,7 @@ class Harris2004NavierStrokeSimulation:
         glUseProgram( self._iprog_divergence.__progHandle__ )
         glBindTexture( GL_TEXTURE_3D, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_divergence, self._tex.Get_3EqTenR1Texname( ) )
+        _Step_Inspect444OriginCubeFromGrid( self._tex.Get_3EqTenR1Texname( ), "DIVERGENCED" )
 
         # PROJECTION JACOBI
         glUseProgram( self._iprog_jacobi.__progHandle__ )
@@ -134,6 +144,7 @@ class Harris2004NavierStrokeSimulation:
             glActiveTexture( GL_TEXTURE1 ); glBindTexture( GL_TEXTURE_3D, self._tex.Get_3EqTenR1Texname() )
             glActiveTexture( GL_TEXTURE0 ); glBindTexture( GL_TEXTURE_3D, self._tex.GetCurrentSlabing_3p1Texname() )
             self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_jacobi, self._tex.GetNextSlabing_3p1Texname( ) )
+            _Step_Inspect444OriginCubeFromGrid( self._tex.GetCurrentSlabing_3p1Texname( ), "JACOBIED" )
 
         glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE )
 
@@ -142,6 +153,9 @@ class Harris2004NavierStrokeSimulation:
         glActiveTexture( GL_TEXTURE1 ); glBindTexture( GL_TEXTURE_3D, self._tex.GetCurrentSlabing_3p1Texname() )
         glActiveTexture( GL_TEXTURE0 ); glBindTexture( GL_TEXTURE_3D, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_gradsub, self._tex.GetNextSlabingUnaux3_1Texname( ) )
+        _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "GRADSUBTRACTED" )
+
+        # import pdb; pdb.set_trace()
 
         glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE )
 
@@ -170,3 +184,34 @@ class Harris2004NavierStrokeSimulation:
 
 def _BindFBOwithTex3DatLayer( texName, layer ):
     glFramebufferTextureLayer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texName, 0, layer )
+
+def _Step_Inspect444OriginCubeFromGrid( targetTexname, headerName ):
+    return
+    glReadBuffer( GL_COLOR_ATTACHMENT0 )
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+
+    ourImg3D = []
+    for operating_z in range( 4 ):
+        _BindFBOwithTex3DatLayer( targetTexname, operating_z )
+
+        pyglWorkaround = (GLfloat *4 *4 *4)() # see. python's lib doc > ctype
+        # ^pyOpenGL's glReadPixels is somewhat crap from it return data, we are going to use pass by ref instead
+
+        glReadPixels( 0, 0, 4, 4, GL_RGBA, GL_FLOAT, pyglWorkaround )
+        # import pdb; pdb.set_trace()
+        ourImg2D = []
+        for y in pyglWorkaround:
+            ourImgRow = []
+            for x in y:
+                r,g,b,a = x
+                ourImgRow += ( (r,g,b,a), )
+            ourImg2D += [ ourImgRow ]
+        ourImg3D += [ ourImg2D ]
+
+    print( headerName )
+    for z in range(len(ourImg3D)):
+        print( 'z', z )
+        for yx in ourImg3D[z]:
+            for x in yx:
+                print( "(%.2e %.2e %.2e %.2e) "%x, end="" )
+            print()

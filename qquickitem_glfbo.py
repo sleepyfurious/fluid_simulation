@@ -3,7 +3,7 @@
 # dev prerequisite in Qt 5.5.1 Reference Documentation:
 # - Qt Quick > Scene Graph - OpenGL Under QML
 # - Qt Quick > Scene Graph - Rendering FBOs
-# - Qt Quick > Scene Graph - Qt Quick Scene Graph > Scene Graph and Rendering ( Threading )
+# - Qt Quick > Qt Quick Scene Graph > Scene Graph and Rendering ( Threading )
 
 from    PyQt5.QtCore    import Qt, QPoint
 from    PyQt5.QtQml     import qmlRegisterType
@@ -37,7 +37,11 @@ class GlFboViewportI:
     # Cleanup everything GLContext dependent here.
     def Cleanup( self ): raise NotImplementedError
 
-    def MousePressdMovedReleasedEvent( self, e: MouseEvent, viewSize: QPoint ): raise NotImplementedError
+    # Created abd scheduled to be handled with Gl Context
+    def MousePressdMovedReleasedEvent( self, e: MouseEvent, viewSize: QPoint ): pass
+
+    # This is qQuick's thread-safe zone for interacting with qquick's item, happened before rendering
+    def Synchronize( self ): pass
 
 class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
 
@@ -55,7 +59,9 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
             super( QquickItemFromGlFboViewportAdapter._ViewportStub, self ).__init__()
             self.owner = owner
 
-        def synchronize( self, item ): pass
+        def synchronize( self, item ):
+            if self.owner._viewport is None: return
+            self.owner._viewport.Synchronize( )
 
         def render( self ):
             if self.owner._viewport is None: return

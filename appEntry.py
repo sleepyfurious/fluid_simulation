@@ -1,5 +1,5 @@
 import  sys
-from    PyQt5.QtCore    import QUrl, QPoint
+from    PyQt5.QtCore    import QUrl, QPoint, QObject
 from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat, QVector3D, QMatrix4x4
 from    PyQt5.QtQuick   import QQuickView
 from    OpenGL.GL       import *
@@ -43,6 +43,8 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.qQuickWorkaround.scale( QVector3D( 1,-1, 1 ) )
         #- ^ this workaround QQuickFramebufferObject-QtQuick y-flip rendering bug
 
+        self.last30DeltaTs = []
+
     def Exec ( self ):
         self.appView.show()
         # self.appView.setPosition(-1080,-1000) # this is for showing on current dev machine's second monitor
@@ -59,6 +61,8 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         if not self.frameRenderer: self.frameRenderer = FrameRenderer( gridSize )
         if not self.loopTimer: self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
+        self.last30DeltaTs.append( deltaT );
+        while len( self.last30DeltaTs ) > 30: self.last30DeltaTs.pop( 0 )
 
         glDisable( GL_BLEND )  # cleanup unexpected QQuick's GL state
 
@@ -92,6 +96,15 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
             del self.framerenderer; self.frameRenderer = None
             del self.hgpu; self.hgpu = None
 
+    def Synchronize( self ):
+        root = self.appView.rootObject() #type: QObject
+
+        if self.last30DeltaTs:
+            sumDeltaTs = 0
+            for dt in self.last30DeltaTs:
+                sumDeltaTs += dt
+            avgDeltaTs = sumDeltaTs /30
+            root.setProperty( 'fpsDisplay', "%.2f"%(1 /avgDeltaTs) )
 
     def MousePressdMovedReleasedEvent ( self, e: quickfbo.MouseEvent, viewSize: QPoint ):
         activeVPMat = self.sceneBoxCam.GetActiveVpMat()

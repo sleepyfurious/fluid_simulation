@@ -24,7 +24,8 @@ ivec3 GetIndex3Dfrom1D( int i, ivec2 wh ) { return  ivec3( i %wh.x, int( i /wh.x
 uniform mat4 vpMat = mat4( 1 ); // camera
 
 #if/**/ defined(GRID)
-    uniform float gridSpacing = 0.1;
+    uniform float cellScale = 0.1;
+    uniform float lineScale = 1;
     uniform ivec3 gridN = ivec3( 10 );
     uniform sampler3D velocityField;
 
@@ -40,15 +41,15 @@ void main ( void ) {
         int     cellID = int( gl_VertexID *0.5 );
         bool    isTail  = mod( gl_VertexID, 2 ) == 0.0; // isOdd 0---->1
 
-        vec3    gridSize            = gridSpacing *gridN;
-        vec3    gridCenterPos       = 0.5 *gridSpacing *( gridN -1 );
+        vec3    gridSize            = cellScale *gridN;
+        vec3    gridCenterPos       = 0.5 *cellScale *( gridN -1 );
 
         ivec3   cellCoord           = GetIndex3Dfrom1D( cellID, gridN.xy );
         vec3    gridScaledCellPos   = ( gridSize *cellCoord ) / gridN;
         vec3    gridCenteredCellPos = gridScaledCellPos -gridCenterPos;
 
         if ( isTail ) {
-            gridCenteredCellPos += vec3( texelFetch( velocityField, cellCoord, 0 ) );
+            gridCenteredCellPos += vec3( texelFetch( velocityField, cellCoord, 0 ) ) *lineScale;
         }
 
         wPos = gridCenteredCellPos;

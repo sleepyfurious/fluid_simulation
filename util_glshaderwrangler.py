@@ -102,20 +102,24 @@ def BuildPipelineProgram(
     glAttachShader( program, fragShader )
     glLinkProgram( program )
 
+    glDeleteShader( vertShader )
+    glDeleteShader( fragShader )
+
+    # clean up and raise if there is a problem
     if glGetProgramiv( program, GL_LINK_STATUS ) != GL_TRUE:
         print( "prog shader error in", vertShaderDefinitionStr.splitlines()[0] +"-" +fragShaderDefinitionStr.splitlines()[0] )
         print ( glGetProgramInfoLog( program ).decode('ascii') )
 
-    glDeleteShader( vertShader )
-    glDeleteShader( fragShader )
+        glDeleteProgram( program )
+        raise Exception
 
     # populate uniform location as attribute variable
     progInfo = ProgramInfo( program )
     uniformN = glGetProgramiv( program, GL_ACTIVE_UNIFORMS )
 
     for uniformIdx in range( uniformN ):
-        uniformName = array( 'b', glGetActiveUniformName( program, uniformIdx, 256 ) ).tobytes().decode('ascii')\
-                      .rstrip('\0') # trim trailing null-terminators if existed
+        uniformName = array( 'b', glGetActiveUniformName( program, uniformIdx, 256 ) ).tobytes().decode('ascii') \
+            .rstrip('\0') # trim trailing null-terminators if existed
         setattr( progInfo, uniformName, glGetUniformLocation( program, uniformName ) )
 
     return progInfo

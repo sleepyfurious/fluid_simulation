@@ -9,7 +9,6 @@ import  util_datatype   as utyp
 import  util_glwrapper  as uglw
 from    util_glshaderwrangler           import BuildPipelineProgram
 import  framerenderer_glsw              as glsw
-from    sleepy_mockup_glslsampler       import Vec2DField2D
 from    framerenderer_offscreendepth    import OffScreenDepthFramebuffer
 
 
@@ -34,14 +33,15 @@ class FrameRenderer:
         del self._depthInteractionBuffer
 
     def RenderToDrawBuffer_VelocityLine ( self, vpMat: QMatrix4x4,
-        texName_velocityField3D: GLuint, fieldSpacing: float
+        tex3DName_velocity: GLuint, cellScale: float, lineScale: float
     ):
         with uglw.VAOBound( self._vao_blank ):
-            with uglw.TextureBound( GL_TEXTURE_3D, texName_velocityField3D ):
+            with uglw.TextureBound( GL_TEXTURE_3D, tex3DName_velocity ):
                 with uglw.ProgBound( self._velocityLineProgramInfo.__progHandle__ ):
                     cellNx2 = self._fieldSize[0] *self._fieldSize[1] *self._fieldSize[2] *2
 
-                    glUniform1fv( self._velocityLineProgramInfo.gridSpacing, 1, fieldSpacing )
+                    glUniform1fv( self._velocityLineProgramInfo.lineScale, 1, lineScale )
+                    glUniform1fv( self._velocityLineProgramInfo.cellScale, 1, cellScale )
                     glUniformMatrix4fv( self._velocityLineProgramInfo.vpMat, 1, GL_FALSE, vpMat.data() )
                     glDrawArrays( GL_LINES, 0, cellNx2 )
                     glDrawArrays( GL_POINTS, 0, cellNx2 )

@@ -1,71 +1,83 @@
-import typing as T
-from    OpenGL.GL import *
+import  typing      as T
+from    collections import namedtuple
+from    OpenGL.GL   import *
 from    PyQt5.QtGui import QVector3D
 
 import  util_glwrapper          as uglw
 import  util_datatype           as utyp
 from    util_glshaderwrangler   import BuildPipelineProgram
 
-import  navierstroke_glsw       as glsw
+import  harris2004navierstroke_glsw       as glsw
 
 class Harris2004NavierStrokeSimulation:
 
-    def __init__( self, gridSize: T.Tuple[int,int,int], gridSpacing ):
+    def __init__( self, gridSize: T.Tuple[int,int,int], cellScale ):
         """:param gridSize: [4,undefined]"""
 
-        ONE_3D = QVector3D(1,1,1)
+        self._progInfoInitLst = [0]
+        try:
+            self._vao_blank         = glGenVertexArrays( 1 )
+            self._fboName           = glGenFramebuffers( 1 )
+            self._tex               = _SlabingTexture( gridSize )
+            self._iprog_advection   = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "ADVECTION",) ))
+            self._iprog_force       = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "FORCE",) ))
+            self._iprog_divergence  = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "DIVERGENCE",) ))
+            self._iprog_jacobi      = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "JACOBI",) ))
+            self._iprog_gradsub     = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "GRADIENTSUB",) ))
+            self._iprog_boundaryLn  = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "BOUNDARY",
+                                                                                                  "BOUNDARY_BORDER",
+                                        "NDCSPACE_PIXELSIZE vec2(%f,%f)"%( 2 /gridSize[0], 2 /gridSize[1] ) ) ))
+            self._iprog_boundaryQd  = self._AppndProgInit(BuildPipelineProgram( glsw.v, glsw.f, ( "BOUNDARY",) ))
 
-        self._tex               = _SlabingTexture( gridSize )
+            self._rDx       = 0
+            self._gridSize  = 0
+            self.SetGrid( gridSize, cellScale )
+            self.SetPressureSolverIterN()
 
-        self._vao_blank         = glGenVertexArrays( 1 )
-        self._fboName           = glGenFramebuffers( 1 )
-        self._iprog_advection   = BuildPipelineProgram( glsw.v, glsw.f, ( "ADVECTION",) )
-        self._iprog_force       = BuildPipelineProgram( glsw.v, glsw.f, ( "FORCE",) )
-        self._iprog_divergence  = BuildPipelineProgram( glsw.v, glsw.f, ( "DIVERGENCE",) )
-        self._iprog_jacobi      = BuildPipelineProgram( glsw.v, glsw.f, ( "JACOBI",) )
-        self._iprog_gradsub     = BuildPipelineProgram( glsw.v, glsw.f, ( "GRADIENTSUB",) )
-        self._iprog_boundaryLn  = BuildPipelineProgram( glsw.v, glsw.f, ( "BOUNDARY", "BOUNDARY_BORDER",
-                                    "NDCSPACE_PIXELSIZE vec2(%f,%f)"%( 2 /gridSize[0], 2 /gridSize[1] ) ) )
-        self._iprog_boundaryQd  = BuildPipelineProgram( glsw.v, glsw.f, ( "BOUNDARY",) )
+            for i in range(3):
+                with uglw.FBOBound( self._fboName ):
+                    self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname(i) )
 
-        self._gridSize          = gridSize
-        self._rGridspacing      = 1 / gridSpacing
-        self._pressureJacobiIteration = 40 # [40,80]
+            self._devTmp_stepCnt = 0
 
-        rGridsize = ONE_3D /QVector3D( *gridSize )
+        except Exception as e: self.CleanUP(); raise e
+
+    def _AppndProgInit( self, progInfo ): self._progInfoInitLst.append( progInfo ); return progInfo
+
+    def CleanUP( self ):
+        glDeleteVertexArrays([ getattr( self,'_vao_blank', 0 ) ])
+        glDeleteFramebuffers([ getattr( self,'_fboName', 0 ) ])
+        for progInfo in self._progInfoInitLst: glDeleteProgram( progInfo.__progHandle__ )
+        if hasattr( self, '_tex' ): self._tex.CleanUp()
+
+    def SetGrid( self, size: T.Tuple[int,int,int], cellScale ):
+        ONE_3D  = QVector3D(1,1,1)
+        rDx     = 1 /cellScale
 
         with uglw.ProgBound( self._iprog_advection.__progHandle__ ):
-            glUniform3fv( self._iprog_advection.rGridsize, 1, utyp.GetTuple( rGridsize ) )
+            glUniform3fv( self._iprog_advection.rGridsize, 1, utyp.GetTuple( ONE_3D /QVector3D( *size ) ) )
 
-        with uglw.ProgBound( self._iprog_force.__progHandle__ ):
-            glUniform1fv( self._iprog_force.rUnitcellspaceHalfBrushsize, 1, 1 /( 0.5 *1 )  )
-
-        halfRgridspacing = 0.5 *self._rGridspacing
         with uglw.ProgBound( self._iprog_divergence.__progHandle__ ):
-            glUniform1fv( self._iprog_divergence.halfRgridspacing, 1, halfRgridspacing )
+            glUniform1fv( self._iprog_divergence.halfRdx, 1, 0.5 *rDx )
+
         with uglw.ProgBound( self._iprog_gradsub.__progHandle__ ):
-            glUniform1fv( self._iprog_gradsub.halfRgridspacing, 1, halfRgridspacing )
+            glUniform1fv( self._iprog_gradsub.halfRdx, 1, 0.5 *rDx )
             glUniform1iv( self._iprog_gradsub.u3_1, 1, 0 )
             glUniform1iv( self._iprog_gradsub._3p1, 1, 1 )
 
         with uglw.ProgBound( self._iprog_jacobi.__progHandle__ ):
             glUniform1iv( self._iprog_jacobi.fieldX, 1, 0 )
             glUniform1iv( self._iprog_jacobi.fieldB, 1, 1 )
-            glUniform2fv( self._iprog_jacobi.alphaRbeta, 1, ( -gridSpacing *gridSpacing, 1 /6 ) )
+            glUniform2fv( self._iprog_jacobi.alphaRbeta, 1, ( -cellScale *cellScale, 1 /6 ) )
 
-        with uglw.FBOBound( self._fboName ): self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
-        with uglw.FBOBound( self._fboName ): self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 1 ) )
-        with uglw.FBOBound( self._fboName ): self._Step_ClearGridAs0( self._tex.GetOffsetSlabingUnaux3_1Texname( 2 ) )
+        self._rDx       = rDx
+        self._gridSize  = size
 
-        self._devTmp_stepCnt = 0
+    def SetPressureSolverIterN( self, var: int =40 ): self._pressureJacobiIteration = var # [40,80]
 
-    def __del__(self):
-        glDeleteVertexArrays( [ self._vao_blank ] )
-        glDeleteFramebuffers( [ self._fboName ] )
-        glDeleteProgram( self._iprog_advection.__progHandle__ )
-        glDeleteProgram( self._iprog_force.__progHandle__ )
+    ForceBrush = namedtuple('ForceBrush',[ 'rUnitcellspaceHalfsize', 'unitcellspacePos', 'force' ])
 
-    def Step( self, deltaT: float ):
+    def Step( self, deltaT: float, forceBrushLst: T.List[ ForceBrush ] ):
         # import time; time.sleep(0.01)
         # print ( 'step:', self._devTmp_stepCnt )
 
@@ -79,7 +91,7 @@ class Harris2004NavierStrokeSimulation:
         _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "START" )
         glUseProgram( self._iprog_advection.__progHandle__ )
         glBindTexture( GL_TEXTURE_3D, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
-        glUniform1fv( self._iprog_advection.dtXrGridspacing, 1, self._rGridspacing )
+        glUniform1fv( self._iprog_advection.dtXrdx, 1, deltaT *self._rDx )
         self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_advection, self._tex.GetNextSlabingUnaux3_1Texname( ) )
         self._Step_ExecBoundary_UseProg( -1, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "ADVECTED" )
@@ -88,13 +100,13 @@ class Harris2004NavierStrokeSimulation:
         with uglw.EnableScope( GL_BLEND ):
             glBlendFunc( GL_ONE, GL_ONE ) #additive blend
             glUseProgram( self._iprog_force.__progHandle__ )
-            if self._devTmp_stepCnt < 500 and self._devTmp_stepCnt >= 0:
-                glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1, ( 5,20,2 ) )
-                glUniform3fv( self._iprog_force.forceXdt, 1, utyp.GetTuple( QVector3D( 20, 0, 0 ) *deltaT ) )
-                self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_force, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
-                # glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1, ( 5,1,3 ) )
-                # glUniform3fv( self._iprog_force.forceXdt, 1, utyp.GetTuple( QVector3D( 0, 20, 0 ) *deltaT ) )
-                # self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_force, self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
+            for forceBrush in forceBrushLst:
+                glUniform1fv( self._iprog_force.rUnitcellspaceHalfBrushsize, 1, forceBrush.rUnitcellspaceHalfsize )
+                glUniform3fv( self._iprog_force.unitcellspaceCursorPosition, 1,
+                              utyp.GetTuple( forceBrush.unitcellspacePos ) )
+                glUniform3fv( self._iprog_force.forceXdt, 1, utyp.GetTuple( forceBrush.force *deltaT ) )
+                self._Step_ExecInnerGrid_PreProgVaoBind( self._iprog_force,
+                                                         self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ) )
         _Step_Inspect444OriginCubeFromGrid( self._tex.GetOffsetSlabingUnaux3_1Texname( 0 ), "FORCED" )
 
         glColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE )
@@ -173,28 +185,34 @@ class Harris2004NavierStrokeSimulation:
 
 class _SlabingTexture:
     def __init__( self, gridSize: T.Tuple[int,int,int] ):
-        maxGridSize = glGetIntegerv( GL_MAX_3D_TEXTURE_SIZE )
-        if  any( map( lambda x: x > maxGridSize, gridSize ) ) or any( map( lambda x: x < 1, gridSize ) ):
-            print( gridSize )
-            raise AssertionError # input size not applicable
+        try:
+            maxGridSize = glGetIntegerv( GL_MAX_3D_TEXTURE_SIZE )
+            if  any( map( lambda x: x > maxGridSize, gridSize ) ) or any( map( lambda x: x < 4, gridSize ) ):
+                print( 'slabing texture is not allocatable on current OpenGL env for:', gridSize )
+                raise AssertionError # input size not applicable
 
-        # GenAllocateTexturesRGBA32F3D with Edgeclamping
-        self._tex_uNaux3p1_0, self._tex_uNaux3p1_1, self._tex_uNaux3eqTenR1 = texNames = glGenTextures( 3 )
+            # GenAllocateTexturesRGBA32F3D with Edgeclamping
+            self._tex_uNaux3p1_0, self._tex_uNaux3p1_1, self._tex_uNaux3eqTenR1 = self.texNames = glGenTextures( 3 )
 
-        for texName in texNames:
-            with uglw.TextureBound( GL_TEXTURE_3D, texName ):
-                glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA32F, gridSize[0], gridSize[1], gridSize[2], 0, GL_RGBA,
-                              GL_FLOAT, 0 ) # don't care uploading anything
-                uglw.SetTextureMinMaxFilter( GL_TEXTURE_3D, GL_LINEAR )
-                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE )
-                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE )
-                glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE )
+            for texName in self.texNames:
+                with uglw.TextureBound( GL_TEXTURE_3D, texName ):
+                    glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA32F, gridSize[0], gridSize[1], gridSize[2], 0, GL_RGBA,
+                                  GL_FLOAT, 0 ) # don't care uploading anything
+                    uglw.SetTextureMinMaxFilter( GL_TEXTURE_3D, GL_LINEAR )
+                    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE )
+                    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE )
+                    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE )
 
-        self._uNaux_texSlabingID = 0
-        self._uNaux_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1, 2: self._tex_uNaux3eqTenR1 }
+            self._uNaux_texSlabingID = 0
+            self._uNaux_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1, 2: self._tex_uNaux3eqTenR1 }
 
-        self.__3p1_texSlabingID = 0
-        self.__3p1_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1 }
+            self.__3p1_texSlabingID = 0
+            self.__3p1_texSlabingDict = { 0: self._tex_uNaux3p1_0, 1: self._tex_uNaux3p1_1 }
+
+        except Exception as e: self.CleanUp(); raise e # if something wrong, do cleanup then tell the client.
+
+    def CleanUp( self ):
+        glDeleteTextures( getattr( self, 'texNames', (0) ) )
 
     def GetNextSlabingUnaux3_1Texname( self )-> GLuint:
         self._uNaux_texSlabingID = ( self._uNaux_texSlabingID +1 ) %len( self._uNaux_texSlabingDict )
@@ -216,8 +234,11 @@ class _SlabingTexture:
 def _BindFBOwithTex3DatLayer( texName, layer ):
     glFramebufferTextureLayer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texName, 0, layer )
 
+_doInspection = False
+
 def _Step_Inspect444OriginCubeFromGrid( targetTexname, headerName ):
-    return
+    if not _doInspection: return
+
     glReadBuffer( GL_COLOR_ATTACHMENT0 )
     glPixelStorei( GL_UNPACK_ALIGNMENT, 1 )
 

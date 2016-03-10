@@ -6,10 +6,6 @@ python3.5.1
 | |
 | |-PyQt-gpl-5.5.1 -> Qt5.5.1
 |
-|-https://github.com/Queatz/Parseme 0.1 ca2c368 on May 1, 2012
-| |
-| |-https://github.com/Queatz/glmpython 0.9.3 4b1546e on Aug 13, 2015 -> glm-0.9.7.2
-|
 |-PyOpenGL-3.1.0
   |
   |-PyOpenGL_accelerate-3.1.0

@@ -9,7 +9,7 @@ import  qquickitem_glfbo    as      quickfbo
 import  util_glwrapper      as      uglw
 import  util_datatype       as      utyp
 from    framerenderer       import  FrameRenderer
-from    navierstroke_gpu    import  Harris2004NavierStrokeSimulation as H_GPU
+from    harris2004navierstroke    import  Harris2004NavierStrokeSimulation as H_GPU
 from    direct_turntable_scenebox_ortho_cam import DirectManeuverTurntableSceneBoxOrthoCam
 
 class FluidSimulationApp( quickfbo.GlFboViewportI ):
@@ -34,7 +34,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.loopTimer          = None
         self.frameCounter       = 0
         self.hgpu               = None
-        self.sceneBoxSize       = QVector3D( 1, 1, 0.1 )
+        self.sceneBoxSize       = QVector3D( 0.5, 0.5, 0.041 )
         self.sceneBoxCam        = DirectManeuverTurntableSceneBoxOrthoCam( self.sceneBoxSize )
         from math import radians
         # self.sceneBoxCam._cam.altitude=radians(90)
@@ -45,15 +45,17 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
 
     def Exec ( self ):
         self.appView.show()
+        # self.appView.setPosition(-1080,-1000) # this is for showing on current dev machine's second monitor
         self.app.exec()
 
     def Draw ( self, fboName: int, viewSize: QPoint ):
         # print( "frameCounter:", self.frameCounter )
         self.frameCounter += 1
 
-        gridSpacing = 0.02
-        gridSize    = tuple( int(x /gridSpacing) for x in utyp.GetTuple( self.sceneBoxSize ) )
-        if not self.hgpu: self.hgpu = H_GPU( gridSize, gridSpacing )
+        cellScale = 0.01
+        gridSize    = tuple( int(x /cellScale) for x in utyp.GetTuple( self.sceneBoxSize ) )
+
+        if not self.hgpu: self.hgpu = H_GPU( gridSize, cellScale )
         if not self.frameRenderer: self.frameRenderer = FrameRenderer( gridSize )
         if not self.loopTimer: self.loopTimer = LoopTimer()
         deltaT = self.loopTimer.GetElapsedInSecond()
@@ -61,8 +63,16 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         glDisable( GL_BLEND )  # cleanup unexpected QQuick's GL state
 
         # realtime timestep simulation
-        # self.hgpu.Step( 0.04 )
-        self.hgpu.Step( deltaT )
+        unitcellspaceBrushPositionXYZ = ( QVector3D(*gridSize ) *QVector3D( 0.1, 0.5, 0.5 ) ) -QVector3D(0.5,0.5,0.5)
+        rUnitcellspaceHalfbrushSize = 2 /( 0.05 /cellScale )
+        force = 100
+        forceBrushLst = [ H_GPU.ForceBrush( rUnitcellspaceHalfbrushSize,
+                                            unitcellspaceBrushPositionXYZ, QVector3D(force,0,0) ) ]
+                          # H_GPU.ForceBrush( rUnitcellspaceHalfbrushSize,
+                          #                   QVector3D(unitcellspaceBrushPositionXYZ.y(),
+                          #                   unitcellspaceBrushPositionXYZ.x(),
+                          #                   unitcellspaceBrushPositionXYZ.z()), QVector3D(0,force,0) )]
+        self.hgpu.Step( deltaT, forceBrushLst )
 
         vpMat = self.qQuickWorkaround *self.sceneBoxCam.GetActiveVpMat()
 
@@ -74,7 +84,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
 
                 self.frameRenderer.RenderToDrawBuffer_VelocityLine( vpMat,
                                                                     self.hgpu.GetTexnameOfCurrentVelocityField(),
-                                                                    gridSpacing )
+                                                                    cellScale, 0.1 )
                 self.frameRenderer.RenderToDrawBuffer_SceneBoxWire( vpMat, self.sceneBoxSize )
 
     def Cleanup ( self ):

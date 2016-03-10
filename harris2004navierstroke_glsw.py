@@ -31,7 +31,7 @@ out     vec4 outVar;
 #if/**/ defined( ADVECTION )
     uniform sampler3D   u3_1;
     uniform vec3        rGridsize;
-    uniform float       dtXrGridspacing;
+    uniform float       dtXrdx;
 
  #elif  defined( JACOBI )
     uniform sampler3D   fieldX, fieldB;
@@ -44,11 +44,11 @@ out     vec4 outVar;
 
  #elif  defined( DIVERGENCE )
     uniform sampler3D   u3_1;
-    uniform float       halfRgridspacing;
+    uniform float       halfRdx;
 
  #elif  defined( GRADIENTSUB )
     uniform sampler3D   u3_1, _3p1;
-    uniform float       halfRgridspacing;
+    uniform float       halfRdx;
 
  #elif  defined( BOUNDARY )
     uniform sampler3D   u3p1;
@@ -67,7 +67,7 @@ out     vec4 outVar;
     ivec3 unitcellspaceCoord    = ivec3( gl_FragCoord.xy, operating_z );
 
 #if/**/ defined( ADVECTION )
-    vec3 unitcellspaceFromPos   = unitcellspaceCoord -dtXrGridspacing *vec3(texelFetch( u3_1, unitcellspaceCoord, 0 ));
+    vec3 unitcellspaceFromPos   = unitcellspaceCoord -dtXrdx *vec3(texelFetch( u3_1, unitcellspaceCoord, 0 ));
     vec3 texspaceFromPos        = ( unitcellspaceFromPos +0.5 ) *rGridsize;
 
     outVar = texture( u3_1, texspaceFromPos );
@@ -83,7 +83,7 @@ out     vec4 outVar;
  #elif  defined( DIVERGENCE )
     vec3 neighborDiffW = GetNeighborDiff( u3_1, unitcellspaceCoord );
 
-    outVar = vec4( halfRgridspacing *( neighborDiffW.x + neighborDiffW.y + neighborDiffW.z ) );
+    outVar = vec4( halfRdx *( neighborDiffW.x + neighborDiffW.y + neighborDiffW.z ) );
 
  #elif  defined( JACOBI )
     vec4 x = GetNeighborSum( fieldX, unitcellspaceCoord ), // proj: p
@@ -94,7 +94,7 @@ out     vec4 outVar;
  #elif  defined( GRADIENTSUB )
     vec3 neighborDiffP = GetNeighborAlphaDiff( _3p1, unitcellspaceCoord );
 
-    outVar.xyz = texelFetch( u3_1, unitcellspaceCoord, 0 ).xyz -halfRgridspacing *neighborDiffP;
+    outVar.xyz = texelFetch( u3_1, unitcellspaceCoord, 0 ).xyz -halfRdx *neighborDiffP;
 
  #elif  defined( BOUNDARY )
     outVar = scale *texelFetch( u3p1, unitcellspaceCoord +offset, 0 );

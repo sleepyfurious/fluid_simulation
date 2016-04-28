@@ -1,7 +1,7 @@
 import  sys
 from    PyQt5.QtCore    import QUrl, QPoint, QObject
 from    PyQt5.QtGui     import QGuiApplication, QSurfaceFormat, QVector3D, QMatrix4x4
-from    PyQt5.QtQuick   import QQuickView
+from    PyQt5.QtQml     import QQmlApplicationEngine
 from    OpenGL.GL       import *
 
 from    looptimer           import  LoopTimer
@@ -15,21 +15,26 @@ from    direct_turntable_scenebox_ortho_cam import DirectManeuverTurntableSceneB
 class FluidSimulationApp( quickfbo.GlFboViewportI ):
     def __init__(self):
         app = QGuiApplication( sys.argv )
-        appView = QQuickView( QUrl.fromLocalFile("main.qml") )
+        qmlAppEngine = QQmlApplicationEngine( QUrl.fromLocalFile("main.qml") )
 
-        appViewOGLFormat = appView.format()  #type: QSurfaceFormat
+        window = qmlAppEngine.rootObjects()[0] # this should contain only QQuickWindow that is root item.
+        # ^ for creating multiple window in possible future
+        #   try see: http://stackoverflow.com/questions/31298810/multiple-windows-in-a-single-project
+
+        appViewOGLFormat = window.format()  #type: QSurfaceFormat
         appViewOGLFormat.setProfile( QSurfaceFormat.CoreProfile )
         appViewOGLFormat.setVersion( 3, 3 )
-        appView.setFormat( appViewOGLFormat )
+        window.setFormat( appViewOGLFormat )
 
-        theAdapterInstance = appView.rootObject().findChild(
+        theAdapterInstance = window.findChild(
                                 quickfbo.QquickItemFromGlFboViewportAdapter,
                                 "glFboViewportAdapter"
                              )  #type: qquickitem_glfbo.QquickItemFromGlFboViewportAdapter
         theAdapterInstance.SetViewport( self )
 
         self.app                = app
-        self.appView            = appView
+        self.qmlAppEngine       = qmlAppEngine
+        self.window            = window
         self.frameRenderer      = None
         self.loopTimer          = None
         self.frameCounter       = 0
@@ -46,7 +51,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         self.last30DeltaTs = []
 
     def Exec ( self ):
-        self.appView.show()
+        self.window.show( )
         # self.appView.setPosition(-1080,-1000) # this is for showing on current dev machine's second monitor
         self.app.exec()
 
@@ -97,7 +102,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
             del self.hgpu; self.hgpu = None
 
     def Synchronize( self ):
-        root = self.appView.rootObject() #type: QObject
+        root = self.window #type: QObject
 
         if self.last30DeltaTs:
             sumDeltaTs = 0

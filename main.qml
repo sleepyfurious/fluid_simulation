@@ -1,7 +1,8 @@
 import QtQuick 2.3
+import QtQuick.Window 2.0
 import GlFboViewport 1.0
 
-Item {
+Window {
     width:  512
     height: 512
 
@@ -36,5 +37,4 @@ Item {
             color: parent.color
         }
     }
-
 }

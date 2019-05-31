@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -e # exit with a non-zero status when any command fail.
+
+# work in script dir
+scriptDir=$(dirname "$BASH_SOURCE")
+cd "$scriptDir"
+clear
+
+# get python version from Pipfile.lock
+python_version=`cat Pipfile.lock | grep python_version | cut -d : -f 2 | tr -d '" '`
+
+# SET path and pwd for creating Pipenv's virtual environment file.
+venv_dir=../venvs_macos
+export WORKON_HOME="$venv_dir"
+
+# install dependencies from tested Pipfile.lock as they are required.
+if ! pipenv --venv; then
+    # create environment and install
+    pipenv --python $python_version install
+           # ^ this flag force pipenv to destroy an existing environment folder
+else
+    pipenv sync
+fi
+
+# launch demo
+cd "$scriptDir"
+pipenv run python appEntry.py

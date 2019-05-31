@@ -13,10 +13,13 @@ from    PyQt5.QtGui     import QMouseEvent
 import  util_datatype   as utyp
 
 class MouseEvent:
-    PRESS   = 1
-    RELEASE = 2
-    MOVE    = 3
-    _eventName = { 1:"press", 2:"release", 3:"move" }
+    LEFT_PRESS      = 1
+    LEFT_RELEASE    = 2
+    RIGHT_PRESS     = 3
+    RIGHT_RELEASE   = 4
+    MOVE            = 5
+
+    _eventName = { 1:"press", 2:"release", 3:"press_r", 4:"release_r", 5:"move" }
 
     def __init__( self, type, pos: QPoint ):
         self.type  = type
@@ -95,11 +98,17 @@ class QquickItemFromGlFboViewportAdapter( QQuickFramebufferObject ):
 
         if e.button() == Qt.LeftButton:
             if      e.type() == QMouseEvent.MouseButtonPress:
-                self._eventQueue.append( MouseEvent( MouseEvent.PRESS, e.pos() ) )
+                self._eventQueue.append( MouseEvent( MouseEvent.LEFT_PRESS, e.pos() ) )
             elif    e.type() == QMouseEvent.MouseButtonRelease:
-                self._eventQueue.append( MouseEvent( MouseEvent.RELEASE, e.pos() ) )
+                self._eventQueue.append( MouseEvent( MouseEvent.LEFT_RELEASE, e.pos() ) )
 
-        elif e.type() == QMouseEvent.MouseMove:
+        if e.button() == Qt.RightButton:
+            if      e.type() == QMouseEvent.MouseButtonPress:
+                self._eventQueue.append( MouseEvent( MouseEvent.RIGHT_PRESS, e.pos() ) )
+            elif    e.type() == QMouseEvent.MouseButtonRelease:
+                self._eventQueue.append( MouseEvent( MouseEvent.RIGHT_RELEASE, e.pos() ) )
+
+        if e.type() == QMouseEvent.MouseMove:
             self._eventQueue.append( MouseEvent( MouseEvent.MOVE, e.pos() ) )
 
 

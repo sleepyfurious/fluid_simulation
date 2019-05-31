@@ -32,16 +32,26 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
                              )  #type: qquickitem_glfbo.QquickItemFromGlFboViewportAdapter
         theAdapterInstance.SetViewport( self )
 
+        # Transparent Window: For demo purpose of "per-pixel morphing Window Possibility"
+        # see: http://stackoverflow.com/questions/7613125/how-to-make-a-transparent-window-with-qt-quick
+        # window.setFlags( Qt.FramelessWindowHint )
+        # see: http://stackoverflow.com/questions/18533641/qquickwindow-transparent
+        # window.setColor( Qt.transparent )
+
         self.app                = app
         self.qmlAppEngine       = qmlAppEngine
-        self.window            = window
+        self.window             = window
         self.frameRenderer      = None
         self.loopTimer          = None
         self.frameCounter       = 0
         self.hgpu               = None
-        self.sceneBoxSize       = QVector3D( 0.5, 0.5, 0.041 )
+        self.sceneBoxSize       = QVector3D( 0.5, 0.5, 0.15 )
+        self.cellScale          = 0.018
         self.sceneBoxCam        = DirectManeuverTurntableSceneBoxOrthoCam( self.sceneBoxSize )
-        from math import radians
+        self.haltFlush          = False # a flag to primitively interact with fluid.
+
+        # startup with top-view
+        # from math import radians
         # self.sceneBoxCam._cam.altitude=radians(90)
 
         self.qQuickWorkaround   = QMatrix4x4()
@@ -59,7 +69,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         # print( "frameCounter:", self.frameCounter )
         self.frameCounter += 1
 
-        cellScale = 0.01
+        cellScale   = self.cellScale
         gridSize    = tuple( int(x /cellScale) for x in utyp.GetTuple( self.sceneBoxSize ) )
 
         if not self.hgpu: self.hgpu = H_GPU( gridSize, cellScale )
@@ -81,12 +91,16 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
                           #                   QVector3D(unitcellspaceBrushPositionXYZ.y(),
                           #                   unitcellspaceBrushPositionXYZ.x(),
                           #                   unitcellspaceBrushPositionXYZ.z()), QVector3D(0,force,0) )]
+
+        if self.haltFlush:
+            forceBrushLst = []
+
         self.hgpu.Step( deltaT, forceBrushLst )
 
         vpMat = self.qQuickWorkaround *self.sceneBoxCam.GetActiveVpMat()
 
         with uglw.FBOBound( fboName ):
-            glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2 ,1 ) )
+            glClearBufferfv( GL_COLOR, 0, ( .2,.2,.2, 1 ) )
             glViewport( 0, 0, viewSize.x(), viewSize.y() )
             with uglw.EnableScope( GL_BLEND ):
                 glBlendFunc( GL_ONE, GL_ONE )
@@ -115,7 +129,7 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
         activeVPMat = self.sceneBoxCam.GetActiveVpMat()
         lowerleftspaceMousePos = QPoint( e.pos.x(), viewSize.y() -e.pos.y() )
 
-        if e.type == quickfbo.MouseEvent.PRESS:
+        if e.type == quickfbo.MouseEvent.LEFT_PRESS:
             try: self.sceneBoxCam.StartManeuver( self.frameRenderer.GetSceneBoxCursorIntersection(
                     activeVPMat, self.sceneBoxSize, lowerleftspaceMousePos, viewSize ) )
             except ValueError: return
@@ -126,8 +140,16 @@ class FluidSimulationApp( quickfbo.GlFboViewportI ):
             self.sceneBoxCam.Maneuver(
                 FrameRenderer.GetUnprojection( lowerleftspaceMousePos, 0., viewSize, activeVPMat ) )
 
-        if e.type == quickfbo.MouseEvent.RELEASE:
+        if e.type == quickfbo.MouseEvent.LEFT_RELEASE:
             self.sceneBoxCam.FinishManeuver()
+
+
+        if e.type == quickfbo.MouseEvent.RIGHT_PRESS:
+            self.haltFlush = True
+
+        if e.type == quickfbo.MouseEvent.RIGHT_RELEASE:
+            self.haltFlush = False
+
 
 
 fluidSimulationApp = FluidSimulationApp()

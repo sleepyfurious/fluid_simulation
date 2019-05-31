@@ -3,8 +3,8 @@ import QtQuick.Window 2.0
 import GlFboViewport 1.0
 
 Window {
-    width:  512
-    height: 512
+    width:  600
+    height: 700
 
     property alias fpsDisplay: fpsDisplay.text
 

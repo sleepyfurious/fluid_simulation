@@ -40,14 +40,16 @@ class Harris2004NavierStrokeSimulation:
 
             self._devTmp_stepCnt = 0
 
-        except Exception as e: self.CleanUP(); raise e
+        except Exception as e:
+            self.CleanUP();
+            raise e
 
     def _AppndProgInit( self, progInfo ): self._progInfoInitLst.append( progInfo ); return progInfo
 
     def CleanUP( self ):
-        glDeleteVertexArrays([ getattr( self,'_vao_blank', 0 ) ])
-        glDeleteFramebuffers([ getattr( self,'_fboName', 0 ) ])
-        for progInfo in self._progInfoInitLst: glDeleteProgram( progInfo.__progHandle__ )
+        glDeleteVertexArrays(1,[ getattr( self,'_vao_blank', 0 ) ])
+        glDeleteFramebuffers(1,[ getattr( self,'_fboName', 0 ) ])
+        for progInfo in self._progInfoInitLst: glDeleteProgram( progInfo )
         if hasattr( self, '_tex' ): self._tex.CleanUp()
 
     def SetGrid( self, size: T.Tuple[int,int,int], cellScale ):
@@ -189,6 +191,7 @@ class _SlabingTexture:
             maxGridSize = glGetIntegerv( GL_MAX_3D_TEXTURE_SIZE )
             if  any( map( lambda x: x > maxGridSize, gridSize ) ) or any( map( lambda x: x < 4, gridSize ) ):
                 print( 'slabing texture is not allocatable on current OpenGL env for:', gridSize )
+                print( 'where max for each dimension is', maxGridSize )
                 raise AssertionError # input size not applicable
 
             # GenAllocateTexturesRGBA32F3D with Edgeclamping
